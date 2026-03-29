@@ -29,6 +29,10 @@ st.set_page_config(
 # DESIGN SYSTEM - CSS PREMIUM
 # ============================================================
 st.markdown("""
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
     /* --- Import Google Fonts --- */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -284,6 +288,20 @@ st.markdown("""
         font-weight: 700;
         color: #4ECDC4;
     }
+    .formula-line {
+        padding: 0.2rem 0;
+    }
+    .formula-op {
+        display: inline-block;
+        width: 1.2rem;
+        font-weight: 700;
+        color: #8B83FF;
+    }
+    .formula-total {
+        border-top: 1px solid rgba(108,99,255,0.3);
+        margin-top: 0.4rem;
+        padding-top: 0.5rem;
+    }
 
     /* --- Explanation Cards --- */
     .explanation-card {
@@ -344,6 +362,282 @@ st.markdown("""
     .stProgress > div > div > div {
         background: linear-gradient(90deg, #6C63FF, #4ECDC4) !important;
         border-radius: 10px;
+    }
+
+    /* ============================================================
+       RESPONSIVE - MOBILE FIRST
+       ============================================================ */
+
+    /* --- Viewport meta (force proper scaling) --- */
+    @viewport { width: device-width; }
+
+    /* --- Small phones (< 480px) --- */
+    @media screen and (max-width: 480px) {
+        /* Global padding */
+        .block-container {
+            padding: 0.5rem 0.8rem !important;
+            max-width: 100% !important;
+        }
+
+        /* Hero */
+        .hero {
+            padding: 1.2rem 0.5rem 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .hero-badge {
+            font-size: 0.65rem;
+            padding: 0.3rem 0.8rem;
+        }
+        .hero h1 {
+            font-size: 1.6rem;
+            line-height: 1.3;
+        }
+        .hero p {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            padding: 0 0.25rem;
+        }
+
+        /* Metrics: 2x2 grid */
+        .metric-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        .metric-card {
+            padding: 0.85rem 0.6rem;
+            border-radius: 12px;
+        }
+        .metric-label {
+            font-size: 0.6rem;
+            letter-spacing: 0.5px;
+        }
+        .metric-value {
+            font-size: 1.1rem;
+        }
+
+        /* Formula box */
+        .formula-box {
+            padding: 0.75rem;
+            font-size: 0.75rem;
+            line-height: 1.8;
+            word-break: break-word;
+        }
+        .formula-box .result {
+            font-size: 1rem;
+            display: block;
+            margin-top: 0.4rem;
+        }
+
+        /* Banners */
+        .success-banner, .error-banner, .info-banner {
+            padding: 0.75rem 1rem;
+            font-size: 0.85rem;
+            border-radius: 10px;
+        }
+
+        /* Section headers */
+        .section-header {
+            font-size: 1.1rem;
+            margin: 1.25rem 0 0.75rem;
+            padding-bottom: 0.5rem;
+        }
+        .section-header .icon {
+            font-size: 1.2rem;
+        }
+
+        /* Upload */
+        [data-testid="stFileUploader"] {
+            border-radius: 12px;
+            padding: 0.25rem;
+        }
+
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            flex-wrap: nowrap;
+            gap: 2px;
+            padding: 3px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.4rem 0.7rem;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            min-width: auto;
+        }
+
+        /* DataFrame: horizontal scroll */
+        [data-testid="stDataFrame"] {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Explanation cards */
+        .explanation-card {
+            padding: 0.85rem;
+            border-radius: 10px;
+        }
+        .explanation-card .tag {
+            font-size: 0.6rem;
+            padding: 0.15rem 0.5rem;
+            margin-bottom: 0.4rem;
+        }
+        .explanation-card p {
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+
+        /* Glass card */
+        .glass-card {
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        /* File count pill */
+        .file-count {
+            padding: 0.2rem 0.7rem;
+            font-size: 0.75rem;
+        }
+
+        /* Footer */
+        .premium-footer {
+            padding: 1.5rem 0 0.75rem;
+            margin-top: 2rem;
+        }
+        .premium-footer p {
+            font-size: 0.72rem;
+        }
+
+        /* Expander text */
+        .streamlit-expanderHeader p {
+            font-size: 0.82rem !important;
+        }
+
+        /* Buttons */
+        .stButton > button[kind="primary"] {
+            padding: 0.65rem 1.2rem !important;
+            font-size: 0.9rem !important;
+            border-radius: 10px !important;
+        }
+        .stDownloadButton > button {
+            font-size: 0.82rem !important;
+            border-radius: 10px !important;
+        }
+    }
+
+    /* --- Tablets & large phones (481px - 768px) --- */
+    @media screen and (min-width: 481px) and (max-width: 768px) {
+        .block-container {
+            padding: 0.75rem 1.5rem !important;
+            max-width: 100% !important;
+        }
+
+        .hero {
+            padding: 1.5rem 0.75rem 1rem;
+        }
+        .hero h1 {
+            font-size: 2rem;
+        }
+        .hero p {
+            font-size: 0.95rem;
+        }
+
+        /* Metrics: 2x2 grid */
+        .metric-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .metric-card {
+            padding: 1rem;
+        }
+        .metric-value {
+            font-size: 1.3rem;
+        }
+
+        /* Formula */
+        .formula-box {
+            font-size: 0.82rem;
+            padding: 0.85rem 1rem;
+        }
+
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.45rem 0.9rem;
+            font-size: 0.82rem;
+        }
+
+        .section-header {
+            font-size: 1.2rem;
+        }
+    }
+
+    /* --- Small desktop (769px - 1024px) --- */
+    @media screen and (min-width: 769px) and (max-width: 1024px) {
+        .block-container {
+            padding: 1rem 2rem !important;
+        }
+        .hero h1 {
+            font-size: 2.4rem;
+        }
+        .metric-value {
+            font-size: 1.4rem;
+        }
+    }
+
+    /* --- Touch device optimizations --- */
+    @media (hover: none) and (pointer: coarse) {
+        /* Larger tap targets */
+        .stButton > button {
+            min-height: 48px !important;
+        }
+        .stDownloadButton > button {
+            min-height: 48px !important;
+        }
+        .stTabs [data-baseweb="tab"] {
+            min-height: 42px;
+        }
+
+        /* Disable hover effects on touch */
+        .metric-card:hover {
+            transform: none;
+        }
+        .glass-card:hover {
+            border-color: rgba(255,255,255,0.08);
+            box-shadow: none;
+        }
+    }
+
+    /* --- Safe area for notched phones --- */
+    @supports (padding: env(safe-area-inset-bottom)) {
+        .premium-footer {
+            padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+        }
+        .block-container {
+            padding-left: calc(0.8rem + env(safe-area-inset-left)) !important;
+            padding-right: calc(0.8rem + env(safe-area-inset-right)) !important;
+        }
+    }
+
+    /* --- Landscape phone --- */
+    @media screen and (max-height: 500px) and (orientation: landscape) {
+        .hero {
+            padding: 0.75rem 0.5rem 0.5rem;
+        }
+        .hero h1 {
+            font-size: 1.4rem;
+        }
+        .hero p {
+            font-size: 0.8rem;
+        }
+        .metric-row {
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -530,13 +824,14 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
             # --- Formula ---
             indemnites = resume.get('indemnites_non_soumises', 0)
             retenues = resume.get('autres_retenues', 0)
+            indemnites_line = f'<div class="formula-line"><span class="formula-op">+</span> Indemnites <strong>{indemnites:.2f}</strong></div>' if indemnites else ""
             st.markdown(f"""
             <div class="formula-box">
-                Brut <strong>{r['brut']:.2f}</strong>
-                &nbsp;-&nbsp; Cotisations <strong>{detail['cotisations_salariales']:.2f}</strong>
-                &nbsp;{"+" if indemnites else ""}&nbsp;{"Indemnites <strong>" + f"{indemnites:.2f}" + "</strong>" if indemnites else ""}
-                &nbsp;-&nbsp; Retenues <strong>{abs(retenues):.2f}</strong>
-                &nbsp;=&nbsp; <span class="result">{r['net']:.2f} EUR</span>
+                <div class="formula-line"><span class="formula-op">&nbsp;</span> Brut <strong>{r['brut']:.2f}</strong></div>
+                <div class="formula-line"><span class="formula-op">-</span> Cotisations <strong>{detail['cotisations_salariales']:.2f}</strong></div>
+                {indemnites_line}
+                <div class="formula-line"><span class="formula-op">-</span> Retenues <strong>{abs(retenues):.2f}</strong></div>
+                <div class="formula-line formula-total"><span class="formula-op">=</span> <span class="result">{r['net']:.2f} EUR</span></div>
             </div>
             """, unsafe_allow_html=True)
 
