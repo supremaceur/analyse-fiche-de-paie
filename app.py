@@ -1,12 +1,11 @@
 """
 Application web Streamlit pour l'analyse de fiches de paie.
-Interface simple et accessible pour les salaries.
+Interface premium accessible pour les salaries.
 """
 
 import sys
 import os
 
-# S'assurer que le repertoire du projet est dans le path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import streamlit as st
@@ -16,83 +15,388 @@ from analyse.analyzer import analyser_fiche
 from payslip_explainer import find_knowledge
 
 
-# --- Configuration de la page ---
+# ============================================================
+# CONFIGURATION
+# ============================================================
 st.set_page_config(
-    page_title="Analyse des fiches de paie",
-    page_icon="📄",
+    page_title="PaySlip Analyzer",
+    page_icon="https://img.icons8.com/fluency/48/money-bag.png",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-# --- CSS personnalise ---
+# ============================================================
+# DESIGN SYSTEM - CSS PREMIUM
+# ============================================================
 st.markdown("""
 <style>
-    .main-title {
+    /* --- Import Google Fonts --- */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+    /* --- Global --- */
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .stApp {
+        background: linear-gradient(180deg, #0E1117 0%, #131620 50%, #0E1117 100%);
+    }
+
+    /* --- Hide Streamlit branding --- */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* --- Hero Header --- */
+    .hero {
         text-align: center;
-        padding: 1rem 0;
+        padding: 2.5rem 1rem 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .hero-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, rgba(108,99,255,0.15), rgba(78,205,196,0.15));
+        border: 1px solid rgba(108,99,255,0.3);
+        border-radius: 50px;
+        padding: 0.4rem 1.2rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #8B83FF;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 1rem;
+    }
+    .hero h1 {
+        font-size: 2.8rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #FFFFFF 0%, #B8B5FF 50%, #6C63FF 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0.5rem 0;
+        line-height: 1.2;
+    }
+    .hero p {
+        font-size: 1.1rem;
+        color: #8892A5;
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.6;
+    }
+
+    /* --- Glassmorphism Cards --- */
+    .glass-card {
+        background: rgba(255,255,255,0.03);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin: 0.75rem 0;
+        transition: all 0.3s ease;
+    }
+    .glass-card:hover {
+        border-color: rgba(108,99,255,0.3);
+        box-shadow: 0 8px 32px rgba(108,99,255,0.1);
+    }
+
+    /* --- Metric Cards --- */
+    .metric-row {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0;
     }
     .metric-card {
-        background: #f0f2f6;
-        border-radius: 10px;
-        padding: 1rem;
+        flex: 1;
+        background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 16px;
+        padding: 1.25rem;
         text-align: center;
+        transition: all 0.3s ease;
     }
-    .success-box {
-        background: #d4edda;
-        border: 1px solid #c3e6cb;
-        border-radius: 8px;
-        padding: 1rem;
+    .metric-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(108,99,255,0.4);
+        box-shadow: 0 12px 40px rgba(108,99,255,0.15);
+    }
+    .metric-card.accent-blue { border-top: 3px solid #6C63FF; }
+    .metric-card.accent-red { border-top: 3px solid #FF6B6B; }
+    .metric-card.accent-amber { border-top: 3px solid #FFB84D; }
+    .metric-card.accent-green { border-top: 3px solid #4ECDC4; }
+
+    .metric-label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #6B7280;
+        margin-bottom: 0.5rem;
+    }
+    .metric-value {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #FAFAFA;
+        line-height: 1.2;
+    }
+    .metric-value.blue { color: #8B83FF; }
+    .metric-value.red { color: #FF6B6B; }
+    .metric-value.amber { color: #FFB84D; }
+    .metric-value.green { color: #4ECDC4; }
+
+    /* --- Section Headers --- */
+    .section-header {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #FAFAFA;
+        margin: 2rem 0 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid rgba(108,99,255,0.3);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .section-header .icon {
+        font-size: 1.5rem;
+    }
+
+    /* --- Upload Zone --- */
+    [data-testid="stFileUploader"] {
+        background: rgba(108,99,255,0.04);
+        border: 2px dashed rgba(108,99,255,0.25);
+        border-radius: 16px;
+        padding: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    [data-testid="stFileUploader"]:hover {
+        border-color: rgba(108,99,255,0.5);
+        background: rgba(108,99,255,0.08);
+    }
+
+    /* --- Buttons --- */
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #6C63FF, #5A52E0) !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 0.75rem 2rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        letter-spacing: 0.3px !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(108,99,255,0.3) !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 8px 25px rgba(108,99,255,0.4) !important;
+    }
+    .stDownloadButton > button {
+        background: rgba(78,205,196,0.1) !important;
+        border: 1px solid rgba(78,205,196,0.3) !important;
+        border-radius: 12px !important;
+        color: #4ECDC4 !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+    }
+    .stDownloadButton > button:hover {
+        background: rgba(78,205,196,0.2) !important;
+        border-color: #4ECDC4 !important;
+    }
+
+    /* --- Tabs --- */
+    .stTabs [data-baseweb="tab-list"] {
+        background: rgba(255,255,255,0.03);
+        border-radius: 12px;
+        padding: 4px;
+        gap: 4px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 10px;
+        padding: 0.5rem 1.25rem;
+        font-weight: 500;
+        color: #8892A5;
+    }
+    .stTabs [aria-selected="true"] {
+        background: rgba(108,99,255,0.15) !important;
+        color: #8B83FF !important;
+    }
+
+    /* --- Expanders --- */
+    .streamlit-expanderHeader {
+        background: rgba(255,255,255,0.03);
+        border-radius: 12px;
+        font-weight: 500;
+    }
+    .streamlit-expanderHeader:hover {
+        background: rgba(108,99,255,0.08);
+    }
+
+    /* --- DataFrames --- */
+    [data-testid="stDataFrame"] {
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* --- Success/Error messages --- */
+    .success-banner {
+        background: linear-gradient(135deg, rgba(78,205,196,0.1), rgba(78,205,196,0.05));
+        border: 1px solid rgba(78,205,196,0.3);
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        color: #4ECDC4;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
         margin: 1rem 0;
     }
-    .error-box {
-        background: #f8d7da;
-        border: 1px solid #f5c6cb;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    .detail-section {
-        background: #ffffff;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 1rem;
+    .error-banner {
+        background: linear-gradient(135deg, rgba(255,107,107,0.1), rgba(255,107,107,0.05));
+        border: 1px solid rgba(255,107,107,0.3);
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        color: #FF6B6B;
+        font-weight: 500;
         margin: 0.5rem 0;
+    }
+    .info-banner {
+        background: linear-gradient(135deg, rgba(108,99,255,0.1), rgba(108,99,255,0.05));
+        border: 1px solid rgba(108,99,255,0.25);
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        color: #8B83FF;
+        font-weight: 500;
+        margin: 1rem 0;
+    }
+
+    /* --- Formula Box --- */
+    .formula-box {
+        background: linear-gradient(135deg, rgba(108,99,255,0.08), rgba(78,205,196,0.05));
+        border: 1px solid rgba(108,99,255,0.2);
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        font-family: 'Inter', monospace;
+        font-size: 0.9rem;
+        color: #B8B5FF;
+        margin: 0.75rem 0;
+    }
+    .formula-box .result {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #4ECDC4;
+    }
+
+    /* --- Explanation Cards --- */
+    .explanation-card {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin: 0.5rem 0;
+        border-left: 3px solid #6C63FF;
+    }
+    .explanation-card .tag {
+        display: inline-block;
+        background: rgba(108,99,255,0.15);
+        color: #8B83FF;
+        border-radius: 6px;
+        padding: 0.2rem 0.6rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-right: 0.5rem;
+    }
+    .explanation-card .tag.green {
+        background: rgba(78,205,196,0.15);
+        color: #4ECDC4;
+    }
+    .explanation-card .tag.amber {
+        background: rgba(255,184,77,0.15);
+        color: #FFB84D;
+    }
+
+    /* --- Footer --- */
+    .premium-footer {
+        text-align: center;
+        padding: 2rem 0 1rem;
+        margin-top: 3rem;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        color: #4B5563;
+        font-size: 0.8rem;
+    }
+    .premium-footer a {
+        color: #6C63FF;
+        text-decoration: none;
+    }
+
+    /* --- File count pill --- */
+    .file-count {
+        display: inline-block;
+        background: linear-gradient(135deg, #6C63FF, #5A52E0);
+        color: white;
+        border-radius: 50px;
+        padding: 0.3rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    /* --- Progress bar --- */
+    .stProgress > div > div > div {
+        background: linear-gradient(90deg, #6C63FF, #4ECDC4) !important;
+        border-radius: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 
-# --- Titre principal ---
-st.markdown("# 📄 Analyse des fiches de paie")
-st.markdown("Deposez vos fiches de paie et obtenez une analyse claire et detaillee.")
-st.divider()
+# ============================================================
+# HERO HEADER
+# ============================================================
+st.markdown("""
+<div class="hero">
+    <div class="hero-badge">Analyse intelligente</div>
+    <h1>PaySlip Analyzer</h1>
+    <p>Deposez vos fiches de paie et obtenez une analyse detaillee, claire et pedagogique de chaque ligne en quelques secondes.</p>
+</div>
+""", unsafe_allow_html=True)
 
 
-# --- Upload de fichiers ---
+# ============================================================
+# UPLOAD ZONE
+# ============================================================
 uploaded_files = st.file_uploader(
-    "Deposez vos fiches de paie ici",
+    "Deposez vos fiches de paie (PDF)",
     type=["pdf"],
     accept_multiple_files=True,
-    help="Formats acceptes : PDF. Vous pouvez deposer plusieurs fichiers en meme temps.",
+    help="Glissez-deposez vos fichiers PDF ici, ou cliquez pour parcourir.",
+    label_visibility="collapsed",
 )
 
 
-# --- Bouton Analyser ---
+# ============================================================
+# ANALYSE
+# ============================================================
 if uploaded_files:
-    st.info(f"{len(uploaded_files)} fichier(s) selectionne(s)")
+    st.markdown(
+        f'<div class="info-banner">'
+        f'<span class="file-count">{len(uploaded_files)}</span>&nbsp;&nbsp;'
+        f'fichier{"s" if len(uploaded_files) > 1 else ""} '
+        f'pret{"s" if len(uploaded_files) > 1 else ""} pour l\'analyse'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
-    if st.button("Analyser", type="primary", use_container_width=True):
+    if st.button("Lancer l'analyse", type="primary", use_container_width=True):
         resultats = []
         erreurs = []
 
-        # Barre de progression
-        progress_bar = st.progress(0, text="Analyse en cours...")
+        progress_bar = st.progress(0, text="Initialisation...")
 
         for i, uploaded_file in enumerate(uploaded_files):
             progress_bar.progress(
                 (i) / len(uploaded_files),
-                text=f"Analyse de {uploaded_file.name}..."
+                text=f"Analyse de {uploaded_file.name}...",
             )
-
             try:
                 resultat = analyser_fiche(uploaded_file)
                 resultats.append(resultat)
@@ -104,35 +408,53 @@ if uploaded_files:
 
         progress_bar.progress(1.0, text="Analyse terminee !")
 
-        # Stocker les resultats en session
         st.session_state["resultats"] = resultats
         st.session_state["erreurs"] = erreurs
 
 
-# --- Affichage des erreurs ---
+# ============================================================
+# ERREURS
+# ============================================================
 if "erreurs" in st.session_state and st.session_state["erreurs"]:
     for err in st.session_state["erreurs"]:
-        st.error(f"Erreur sur **{err['fichier']}** : {err['erreur']}")
+        st.markdown(
+            f'<div class="error-banner">'
+            f'Erreur sur <strong>{err["fichier"]}</strong> : {err["erreur"]}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 
-# --- Affichage des resultats ---
+# ============================================================
+# RESULTATS
+# ============================================================
 if "resultats" in st.session_state and st.session_state["resultats"]:
     resultats = st.session_state["resultats"]
 
-    st.success(f"{len(resultats)} fiche(s) analysee(s) avec succes !")
-    st.divider()
+    st.markdown(
+        f'<div class="success-banner">'
+        f'<span style="font-size:1.4rem">&#10003;</span> '
+        f'{len(resultats)} fiche{"s" if len(resultats) > 1 else ""} '
+        f'analysee{"s" if len(resultats) > 1 else ""} avec succes'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
-    # ===== TABLEAU DE SYNTHESE =====
-    st.markdown("## Tableau de synthese")
+    # ======= TABLEAU DE SYNTHESE =======
+    st.markdown(
+        '<div class="section-header">'
+        '<span class="icon">&#128202;</span> Tableau de synthese'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
-    # Construire le DataFrame
     tableau_data = []
     for r in resultats:
         tableau_data.append({
             "Nom": r["nom"],
             "Periode": r["periode"],
             "Coefficient": r["coefficient"],
-            "Taux horaire (EUR)": r["taux_horaire"],
+            "Taux horaire": r["taux_horaire"],
             "Heures": r["heures"],
             "Absences": r["absences"],
             "Brut (EUR)": r["brut"],
@@ -142,18 +464,20 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
 
     df = pd.DataFrame(tableau_data)
 
-    # Formater les colonnes monetaires
     st.dataframe(
         df.style.format({
             "Brut (EUR)": "{:.2f}",
             "Primes (EUR)": "{:.2f}",
             "Net a payer (EUR)": "{:.2f}",
+        }).set_properties(**{
+            'background-color': 'rgba(255,255,255,0.02)',
+            'color': '#FAFAFA',
         }),
         use_container_width=True,
         hide_index=True,
     )
 
-    # ===== EXPORT CSV =====
+    # ======= EXPORT CSV =======
     csv = df.to_csv(index=False, sep=";", encoding="utf-8-sig")
     st.download_button(
         label="Telecharger le tableau en CSV",
@@ -163,10 +487,13 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
         use_container_width=True,
     )
 
-    st.divider()
-
-    # ===== DETAIL PAR FICHE =====
-    st.markdown("## Detail par fiche")
+    # ======= DETAIL PAR FICHE =======
+    st.markdown(
+        '<div class="section-header">'
+        '<span class="icon">&#128196;</span> Detail par fiche'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     for idx, r in enumerate(resultats):
         detail = r["detail"]
@@ -175,34 +502,54 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
         resume = payslip_dict["resume"]
 
         with st.expander(
-            f"📄 {fichier} — {r['periode']} — Net : {r['net']:.2f} EUR",
+            f"{fichier}  |  {r['periode']}  |  Net : {r['net']:.2f} EUR",
             expanded=(len(resultats) == 1),
         ):
-            # --- Metriques cles ---
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Brut", f"{r['brut']:.2f} EUR")
-            with col2:
-                st.metric("Cotisations", f"{detail['cotisations_salariales']:.2f} EUR")
-            with col3:
-                st.metric("Net avant impot", f"{detail['net_avant_impot']:.2f} EUR")
-            with col4:
-                st.metric("Net a payer", f"{r['net']:.2f} EUR")
+            # --- Metrics Row ---
+            st.markdown(f"""
+            <div class="metric-row">
+                <div class="metric-card accent-blue">
+                    <div class="metric-label">Remuneration brute</div>
+                    <div class="metric-value blue">{r['brut']:.2f} EUR</div>
+                </div>
+                <div class="metric-card accent-red">
+                    <div class="metric-label">Cotisations salariales</div>
+                    <div class="metric-value red">{detail['cotisations_salariales']:.2f} EUR</div>
+                </div>
+                <div class="metric-card accent-amber">
+                    <div class="metric-label">Net avant impot</div>
+                    <div class="metric-value amber">{detail['net_avant_impot']:.2f} EUR</div>
+                </div>
+                <div class="metric-card accent-green">
+                    <div class="metric-label">Net a payer</div>
+                    <div class="metric-value green">{r['net']:.2f} EUR</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-            st.caption(
-                f"Formule : Brut ({r['brut']:.2f}) "
-                f"- Cotisations ({detail['cotisations_salariales']:.2f}) "
-                f"+ Indemnites ({resume.get('indemnites_non_soumises', 0):.2f}) "
-                f"- Retenues ({resume.get('autres_retenues', 0):.2f}) "
-                f"= **{r['net']:.2f} EUR**"
-            )
+            # --- Formula ---
+            indemnites = resume.get('indemnites_non_soumises', 0)
+            retenues = resume.get('autres_retenues', 0)
+            st.markdown(f"""
+            <div class="formula-box">
+                Brut <strong>{r['brut']:.2f}</strong>
+                &nbsp;-&nbsp; Cotisations <strong>{detail['cotisations_salariales']:.2f}</strong>
+                &nbsp;{"+" if indemnites else ""}&nbsp;{"Indemnites <strong>" + f"{indemnites:.2f}" + "</strong>" if indemnites else ""}
+                &nbsp;-&nbsp; Retenues <strong>{abs(retenues):.2f}</strong>
+                &nbsp;=&nbsp; <span class="result">{r['net']:.2f} EUR</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-            # --- Onglets de detail ---
+            # --- Tabs ---
             tab_rem, tab_cot, tab_abs, tab_exp, tab_json = st.tabs([
-                "Remuneration", "Cotisations", "Absences", "Explications", "JSON"
+                "Remuneration",
+                "Cotisations",
+                "Absences",
+                "Explications",
+                "Donnees brutes",
             ])
 
-            # --- Onglet Remuneration ---
+            # --- Tab Remuneration ---
             with tab_rem:
                 lines = []
                 for section in ("remuneration", "primes"):
@@ -215,7 +562,7 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
                             "Base": line.get("nombre_ou_base", ""),
                             "Taux": line.get("taux_ou_pourcent", ""),
                             "Montant (EUR)": line.get("montant_employe", 0),
-                            "Type": knowledge["type"] if knowledge else "?",
+                            "Type": knowledge["type"].capitalize() if knowledge else "?",
                         })
                 if lines:
                     st.dataframe(
@@ -223,7 +570,7 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
                         use_container_width=True, hide_index=True,
                     )
 
-            # --- Onglet Cotisations ---
+            # --- Tab Cotisations ---
             with tab_cot:
                 lines = []
                 for line in payslip_dict.get("cotisations", []):
@@ -246,16 +593,25 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
                         use_container_width=True, hide_index=True,
                     )
 
-                # Totaux
-                col_a, col_b, col_c = st.columns(3)
-                with col_a:
-                    st.metric("Total cotisations salariales", f"{detail['cotisations_salariales']:.2f} EUR")
-                with col_b:
-                    st.metric("Total cotisations patronales", f"{detail['cotisations_patronales']:.2f} EUR")
-                with col_c:
-                    st.metric("Cout total employeur", f"{detail['total_verse_employeur']:.2f} EUR")
+                # Totals
+                st.markdown(f"""
+                <div class="metric-row">
+                    <div class="metric-card accent-red">
+                        <div class="metric-label">Cotisations salariales</div>
+                        <div class="metric-value red">{detail['cotisations_salariales']:.2f} EUR</div>
+                    </div>
+                    <div class="metric-card accent-amber">
+                        <div class="metric-label">Cotisations patronales</div>
+                        <div class="metric-value amber">{detail['cotisations_patronales']:.2f} EUR</div>
+                    </div>
+                    <div class="metric-card accent-blue">
+                        <div class="metric-label">Cout total employeur</div>
+                        <div class="metric-value blue">{detail['total_verse_employeur']:.2f} EUR</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-            # --- Onglet Absences ---
+            # --- Tab Absences ---
             with tab_abs:
                 absences = detail.get("absences_detail", [])
                 if absences:
@@ -267,71 +623,104 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
                             "Montant retenu (EUR)": a["montant"],
                         })
                     st.dataframe(
-                        pd.DataFrame(abs_data).style.format({"Montant retenu (EUR)": "{:.2f}"}),
+                        pd.DataFrame(abs_data).style.format({
+                            "Montant retenu (EUR)": "{:.2f}",
+                        }),
                         use_container_width=True, hide_index=True,
                     )
                 else:
-                    st.info("Aucune absence detectee sur cette periode.")
+                    st.markdown(
+                        '<div class="info-banner">Aucune absence detectee sur cette periode.</div>',
+                        unsafe_allow_html=True,
+                    )
 
                 conges = resume.get("conges_acquis", "")
                 if conges:
-                    st.metric("Solde conges acquis", conges)
+                    st.markdown(f"""
+                    <div class="glass-card" style="display:inline-block;">
+                        <div class="metric-label">Solde conges acquis</div>
+                        <div class="metric-value green">{conges} jours</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-            # --- Onglet Explications ---
+            # --- Tab Explications ---
             with tab_exp:
-                st.markdown("### Explication ligne par ligne")
-                st.caption("Cliquez sur une ligne pour voir l'explication detaillee.")
+                st.markdown(
+                    '<div class="section-header" style="font-size:1.1rem;margin-top:0;">'
+                    '<span class="icon">&#128218;</span> Explication ligne par ligne'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
 
                 for exp in detail["explanations"]:
                     if not exp.get("connu"):
-                        with st.expander(f"⚠️ {exp['designation']} — LIGNE NON RECONNUE"):
-                            st.warning(
-                                f"Cette ligne n'a pas ete identifiee automatiquement. "
-                                f"Montant salarie : {exp['montant_employe']:.2f} EUR"
-                            )
+                        st.markdown(
+                            f'<div class="error-banner" style="font-size:0.85rem;">'
+                            f'Ligne non reconnue : <strong>{exp["designation"]}</strong>'
+                            f' — Montant : {exp["montant_employe"]:.2f} EUR'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
                         continue
 
-                    icon = {
-                        "salaire": "💰", "prime": "🎁", "cotisation": "🏛️",
-                        "absence": "📅", "indemnite": "💵", "retenue": "📌",
-                        "impot": "🏦", "exoneration": "✅", "information": "ℹ️",
-                        "regularisation": "🔄",
-                    }.get(exp["type"], "📋")
+                    type_colors = {
+                        "salaire": "", "prime": "green", "cotisation": "",
+                        "absence": "amber", "indemnite": "green", "retenue": "amber",
+                        "impot": "amber", "exoneration": "green", "information": "",
+                        "regularisation": "",
+                    }
+                    tag_class = type_colors.get(exp["type"], "")
+                    obligatoire_txt = "Obligatoire" if exp.get("obligatoire") else "Optionnel"
 
-                    with st.expander(f"{icon} {exp['designation']}"):
-                        st.markdown(f"**Type** : {exp['type']}")
-                        st.markdown(f"**Explication** : {exp['explication']}")
-                        st.markdown(f"**A quoi ca sert** : {exp['a_quoi_ca_sert']}")
-                        st.markdown(f"**Qui paie** : {exp['qui_paie']}")
-                        st.markdown(f"**Obligatoire** : {'Oui' if exp.get('obligatoire') else 'Non'}")
-                        if exp.get("montant_employe"):
-                            st.markdown(f"**Montant salarie** : {exp['montant_employe']:.2f} EUR")
-                        if exp.get("montant_employeur"):
-                            st.markdown(f"**Montant employeur** : {exp['montant_employeur']:.2f} EUR")
+                    with st.expander(f"{exp['designation']}"):
+                        st.markdown(f"""
+                        <div class="explanation-card">
+                            <div style="margin-bottom:0.75rem;">
+                                <span class="tag {tag_class}">{exp['type']}</span>
+                                <span class="tag {'green' if exp.get('obligatoire') else 'amber'}">{obligatoire_txt}</span>
+                            </div>
+                            <p style="color:#D1D5DB;margin:0.5rem 0;line-height:1.6;">
+                                <strong style="color:#FAFAFA;">Explication :</strong> {exp['explication']}
+                            </p>
+                            <p style="color:#D1D5DB;margin:0.5rem 0;line-height:1.6;">
+                                <strong style="color:#FAFAFA;">A quoi ca sert :</strong> {exp['a_quoi_ca_sert']}
+                            </p>
+                            <p style="color:#D1D5DB;margin:0.5rem 0;">
+                                <strong style="color:#FAFAFA;">Qui paie :</strong> {exp['qui_paie']}
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-                # Questions
                 questions = detail.get("questions", [])
                 if questions:
-                    st.divider()
-                    st.warning(f"{len(questions)} ligne(s) non identifiee(s)")
-                    for q in questions:
-                        st.markdown(f"- **{q['ligne']}** : {q['question']}")
+                    st.markdown(
+                        f'<div class="error-banner">'
+                        f'{len(questions)} ligne(s) non identifiee(s) — '
+                        f'verification manuelle recommandee'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
 
-            # --- Onglet JSON ---
+            # --- Tab JSON ---
             with tab_json:
                 st.json(payslip_dict)
                 json_str = json.dumps(payslip_dict, ensure_ascii=False, indent=2)
                 st.download_button(
-                    label=f"Telecharger le JSON ({fichier})",
+                    label=f"Telecharger JSON — {fichier}",
                     data=json_str,
                     file_name=f"{os.path.splitext(fichier)[0]}_analyse.json",
                     mime="application/json",
                 )
 
 
-# --- Footer ---
-st.divider()
-st.caption(
-    "Application d'analyse de fiches de paie | "
-    "Les donnees restent sur votre navigateur et ne sont pas stockees."
-)
+# ============================================================
+# FOOTER
+# ============================================================
+st.markdown("""
+<div class="premium-footer">
+    <p>PaySlip Analyzer &mdash; Analyse intelligente de fiches de paie</p>
+    <p style="font-size:0.72rem;margin-top:0.25rem;">
+        Vos donnees restent privees et ne sont jamais stockees.
+    </p>
+</div>
+""", unsafe_allow_html=True)
