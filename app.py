@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import json
 from analyse.analyzer import analyser_fiche
@@ -26,6 +27,63 @@ st.set_page_config(
 )
 
 # ============================================================
+# PWA — Remplacer le manifest/favicon Streamlit par les nôtres
+# ============================================================
+components.html("""
+<script>
+(function() {
+    var doc = window.parent.document;
+    var head = doc.head;
+
+    function overridePWA() {
+        // Supprimer le manifest Streamlit
+        var old = doc.querySelector('link[rel="manifest"]');
+        if (old) old.remove();
+        var m = doc.createElement('link');
+        m.rel = 'manifest';
+        m.href = './app/static/manifest.json';
+        head.appendChild(m);
+
+        // Remplacer les favicons
+        doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(function(e){ e.remove(); });
+        var f1 = doc.createElement('link');
+        f1.rel='icon'; f1.type='image/png'; f1.sizes='32x32'; f1.href='./app/static/favicon.png';
+        head.appendChild(f1);
+        var f2 = doc.createElement('link');
+        f2.rel='icon'; f2.type='image/png'; f2.sizes='192x192'; f2.href='./app/static/icon-192x192.png';
+        head.appendChild(f2);
+
+        // Apple touch icon
+        doc.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function(e){ e.remove(); });
+        var a = doc.createElement('link');
+        a.rel='apple-touch-icon'; a.sizes='180x180'; a.href='./app/static/apple-touch-icon.png';
+        head.appendChild(a);
+
+        // Titre
+        doc.title = 'PaySlip Analyzer';
+    }
+
+    overridePWA();
+    setTimeout(overridePWA, 500);
+    setTimeout(overridePWA, 2000);
+    setTimeout(overridePWA, 5000);
+
+    // Observer le head pour contrer les réinjections de Streamlit
+    new MutationObserver(function(muts) {
+        muts.forEach(function(mut) {
+            mut.addedNodes.forEach(function(n) {
+                if (n.tagName === 'LINK' && n.rel === 'manifest' && n.href && n.href.indexOf('app/static') === -1) {
+                    n.remove();
+                    overridePWA();
+                }
+            });
+        });
+    }).observe(head, { childList: true });
+})();
+</script>
+""", height=0)
+
+# ============================================================
 # DESIGN SYSTEM - CSS PREMIUM
 # ============================================================
 st.markdown("""
@@ -37,60 +95,6 @@ st.markdown("""
 <meta name="application-name" content="PaySlip Analyzer">
 <meta name="theme-color" content="#6C63FF">
 <meta name="msapplication-TileColor" content="#6C63FF">
-<script>
-(function() {
-    // Supprimer le manifest Streamlit existant et le remplacer par le nôtre
-    function overridePWA() {
-        // 1. Remplacer le manifest
-        var oldManifest = document.querySelector('link[rel="manifest"]');
-        if (oldManifest) oldManifest.remove();
-        var m = document.createElement('link');
-        m.rel = 'manifest';
-        m.href = './app/static/manifest.json';
-        document.head.appendChild(m);
-
-        // 2. Remplacer les favicons
-        document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(function(el) { el.remove(); });
-        var fav32 = document.createElement('link');
-        fav32.rel = 'icon'; fav32.type = 'image/png'; fav32.sizes = '32x32';
-        fav32.href = './app/static/favicon.png';
-        document.head.appendChild(fav32);
-        var fav192 = document.createElement('link');
-        fav192.rel = 'icon'; fav192.type = 'image/png'; fav192.sizes = '192x192';
-        fav192.href = './app/static/icon-192x192.png';
-        document.head.appendChild(fav192);
-
-        // 3. Apple touch icon
-        document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function(el) { el.remove(); });
-        var apple = document.createElement('link');
-        apple.rel = 'apple-touch-icon'; apple.sizes = '180x180';
-        apple.href = './app/static/apple-touch-icon.png';
-        document.head.appendChild(apple);
-
-        // 4. Forcer le titre
-        document.title = 'PaySlip Analyzer';
-    }
-
-    // Exécuter immédiatement + après chargement complet (Streamlit injecte tard)
-    overridePWA();
-    window.addEventListener('load', function() {
-        setTimeout(overridePWA, 500);
-        setTimeout(overridePWA, 2000);
-    });
-    // Observer les changements du head (Streamlit peut réinjecter)
-    var obs = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mut) {
-            mut.addedNodes.forEach(function(node) {
-                if (node.tagName === 'LINK' && node.rel === 'manifest' && node.href.indexOf('app/static') === -1) {
-                    node.remove();
-                    overridePWA();
-                }
-            });
-        });
-    });
-    obs.observe(document.head, { childList: true });
-})();
-</script>
 <style>
     /* --- Import Google Fonts --- */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
