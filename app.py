@@ -27,39 +27,33 @@ st.set_page_config(
 )
 
 # ============================================================
-# PWA — Remplacer le manifest/favicon/SW Streamlit par les nôtres
-# Stratégie : désinscrire le SW Streamlit, pointer vers notre
-# manifest réel, et réinscrire notre propre SW minimal.
+# PWA — Stratégie :
+# 1. NE PAS toucher au SW Streamlit (il active le prompt install)
+# 2. Capturer beforeinstallprompt, remplacer le manifest, relancer
+# 3. Bouton install custom en fallback
 # ============================================================
 components.html("""
 <script>
 (function() {
-    var doc = window.parent.document;
+    var w = window.parent;
+    var doc = w.document;
     var head = doc.head;
-    var nav = window.parent.navigator;
     var base = './app/static/';
-    var manifestUrl = base + 'manifest.json';
 
-    // 1. Désinscrire TOUS les service workers Streamlit
-    if (nav.serviceWorker) {
-        nav.serviceWorker.getRegistrations().then(function(regs) {
-            regs.forEach(function(r) { r.unregister(); });
-        });
-        // Enregistrer notre SW minimal (nécessaire pour le prompt "Installer")
-        nav.serviceWorker.register(base + 'sw.js', { scope: '/' }).catch(function() {
-            // Si scope '/' échoue (header manquant), essayer sans scope
-            nav.serviceWorker.register(base + 'sw.js').catch(function(){});
-        });
-    }
-
-    // 2. Remplacer manifest, favicons, title
+    // --- Remplacer manifest + favicons + meta ---
     function overridePWA() {
-        doc.querySelectorAll('link[rel="manifest"]').forEach(function(e) { e.remove(); });
-        var m = doc.createElement('link');
-        m.rel = 'manifest';
-        m.href = manifestUrl;
-        head.appendChild(m);
+        // Manifest : modifier le href existant plutôt que supprimer/recréer
+        var ml = doc.querySelector('link[rel="manifest"]');
+        if (ml) {
+            ml.href = base + 'manifest.json';
+        } else {
+            ml = doc.createElement('link');
+            ml.rel = 'manifest';
+            ml.href = base + 'manifest.json';
+            head.appendChild(ml);
+        }
 
+        // Favicons
         doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(function(e) { e.remove(); });
         var f1 = doc.createElement('link');
         f1.rel='icon'; f1.type='image/png'; f1.sizes='32x32'; f1.href=base+'favicon.png';
@@ -68,6 +62,7 @@ components.html("""
         f2.rel='icon'; f2.type='image/png'; f2.sizes='192x192'; f2.href=base+'icon-192x192.png';
         head.appendChild(f2);
 
+        // Apple touch icon
         doc.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function(e) { e.remove(); });
         var a = doc.createElement('link');
         a.rel='apple-touch-icon'; a.sizes='180x180'; a.href=base+'apple-touch-icon.png';
@@ -75,40 +70,51 @@ components.html("""
 
         doc.title = 'PaySlip Analyzer';
 
-        var tc = doc.querySelector('meta[name="theme-color"]');
-        if (!tc) { tc = doc.createElement('meta'); tc.name='theme-color'; head.appendChild(tc); }
-        tc.content = '#6C63FF';
-
-        var an = doc.querySelector('meta[name="application-name"]');
-        if (!an) { an = doc.createElement('meta'); an.name='application-name'; head.appendChild(an); }
-        an.content = 'PaySlip Analyzer';
-
-        var aw = doc.querySelector('meta[name="apple-mobile-web-app-title"]');
-        if (!aw) { aw = doc.createElement('meta'); aw.name='apple-mobile-web-app-title'; head.appendChild(aw); }
-        aw.content = 'PaySlip Analyzer';
+        // Meta tags
+        [['theme-color','#6C63FF'],['application-name','PaySlip Analyzer'],['apple-mobile-web-app-title','PaySlip Analyzer']].forEach(function(p) {
+            var el = doc.querySelector('meta[name="'+p[0]+'"]');
+            if (!el) { el = doc.createElement('meta'); el.name=p[0]; head.appendChild(el); }
+            el.content = p[1];
+        });
     }
 
+    // Exécuter immédiatement et à intervalles
     overridePWA();
-    setTimeout(overridePWA, 50);
-    setTimeout(overridePWA, 200);
-    setTimeout(overridePWA, 800);
-    setTimeout(overridePWA, 2000);
-    setTimeout(overridePWA, 5000);
+    [50,200,500,1500,3000,6000].forEach(function(t){ setTimeout(overridePWA, t); });
 
-    // 3. MutationObserver : bloquer toute réinjection Streamlit
+    // --- Capturer le prompt d'installation ---
+    var deferredPrompt = null;
+
+    w.addEventListener('beforeinstallprompt', function(e) {
+        // Empêcher le prompt auto de Streamlit (avec mauvais nom/logo)
+        e.preventDefault();
+        deferredPrompt = e;
+        // S'assurer que notre manifest est en place
+        overridePWA();
+        // Relancer le prompt après un court délai (manifest mis à jour)
+        setTimeout(function() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(function() { deferredPrompt = null; });
+            }
+        }, 800);
+    });
+
+    // --- MutationObserver : rediriger le manifest Streamlit ---
     new MutationObserver(function(muts) {
         muts.forEach(function(mut) {
             mut.addedNodes.forEach(function(n) {
                 if (n.nodeType !== 1) return;
-                if (n.tagName === 'LINK' && n.rel === 'manifest' && n.href.indexOf('app/static') === -1) {
-                    n.remove(); overridePWA();
+                if (n.tagName === 'LINK' && n.rel === 'manifest' && n.href && n.href.indexOf('app/static') === -1) {
+                    // Au lieu de supprimer, on redirige vers notre manifest
+                    n.href = base + 'manifest.json';
                 }
-                if (n.tagName === 'LINK' && (n.rel === 'icon' || n.rel === 'shortcut icon') && n.href.indexOf('app/static') === -1) {
-                    n.remove(); overridePWA();
+                if (n.tagName === 'LINK' && (n.rel === 'icon' || n.rel === 'shortcut icon') && n.href && n.href.indexOf('app/static') === -1) {
+                    n.remove();
                 }
             });
         });
-    }).observe(head, { childList: true });
+    }).observe(head, { childList: true, subtree: false });
 })();
 </script>
 """, height=0)
