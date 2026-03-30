@@ -28,58 +28,98 @@ st.set_page_config(
 
 # ============================================================
 # PWA — Remplacer le manifest/favicon Streamlit par les nôtres
+# On injecte le manifest en tant que blob URL pour que le
+# navigateur lise notre contenu avant le prompt d'installation.
 # ============================================================
-components.html("""
+_PWA_ORIGIN = "window.parent.location.origin"
+components.html(f"""
 <script>
-(function() {
+(function() {{
     var doc = window.parent.document;
     var head = doc.head;
+    var origin = window.parent.location.origin;
+    var base = origin + '/app/static/';
 
-    function overridePWA() {
-        // Supprimer le manifest Streamlit
-        var old = doc.querySelector('link[rel="manifest"]');
-        if (old) old.remove();
+    // Manifest en blob URL avec URLs absolues pour les icônes
+    var manifest = {{
+        name: "PaySlip Analyzer \\u2014 Analyse de Fiches de Paie",
+        short_name: "PaySlip Analyzer",
+        description: "Analysez et comprenez vos fiches de paie",
+        start_url: origin + "/",
+        display: "standalone",
+        background_color: "#0E1117",
+        theme_color: "#6C63FF",
+        orientation: "any",
+        lang: "fr-FR",
+        icons: [
+            {{ src: base+"icon-72x72.png", sizes: "72x72", type: "image/png", purpose: "any" }},
+            {{ src: base+"icon-96x96.png", sizes: "96x96", type: "image/png", purpose: "any" }},
+            {{ src: base+"icon-128x128.png", sizes: "128x128", type: "image/png", purpose: "any" }},
+            {{ src: base+"icon-144x144.png", sizes: "144x144", type: "image/png", purpose: "any" }},
+            {{ src: base+"icon-152x152.png", sizes: "152x152", type: "image/png", purpose: "any" }},
+            {{ src: base+"icon-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" }},
+            {{ src: base+"icon-384x384.png", sizes: "384x384", type: "image/png", purpose: "any" }},
+            {{ src: base+"icon-512x512.png", sizes: "512x512", type: "image/png", purpose: "any" }},
+            {{ src: base+"icon-maskable-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }}
+        ]
+    }};
+    var blob = new Blob([JSON.stringify(manifest)], {{ type: 'application/manifest+json' }});
+    var blobUrl = URL.createObjectURL(blob);
+
+    function overridePWA() {{
+        // Remplacer TOUS les manifests existants
+        doc.querySelectorAll('link[rel="manifest"]').forEach(function(e) {{ e.remove(); }});
         var m = doc.createElement('link');
         m.rel = 'manifest';
-        m.href = './app/static/manifest.json';
+        m.href = blobUrl;
         head.appendChild(m);
 
-        // Remplacer les favicons
-        doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(function(e){ e.remove(); });
+        // Favicons
+        doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(function(e) {{ e.remove(); }});
         var f1 = doc.createElement('link');
-        f1.rel='icon'; f1.type='image/png'; f1.sizes='32x32'; f1.href='./app/static/favicon.png';
+        f1.rel='icon'; f1.type='image/png'; f1.sizes='32x32'; f1.href=base+'favicon.png';
         head.appendChild(f1);
         var f2 = doc.createElement('link');
-        f2.rel='icon'; f2.type='image/png'; f2.sizes='192x192'; f2.href='./app/static/icon-192x192.png';
+        f2.rel='icon'; f2.type='image/png'; f2.sizes='192x192'; f2.href=base+'icon-192x192.png';
         head.appendChild(f2);
 
         // Apple touch icon
-        doc.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function(e){ e.remove(); });
+        doc.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function(e) {{ e.remove(); }});
         var a = doc.createElement('link');
-        a.rel='apple-touch-icon'; a.sizes='180x180'; a.href='./app/static/apple-touch-icon.png';
+        a.rel='apple-touch-icon'; a.sizes='180x180'; a.href=base+'apple-touch-icon.png';
         head.appendChild(a);
 
         // Titre
         doc.title = 'PaySlip Analyzer';
-    }
+
+        // Meta theme-color
+        var tc = doc.querySelector('meta[name="theme-color"]');
+        if (!tc) {{ tc = doc.createElement('meta'); tc.name='theme-color'; head.appendChild(tc); }}
+        tc.content = '#6C63FF';
+    }}
 
     overridePWA();
+    setTimeout(overridePWA, 100);
     setTimeout(overridePWA, 500);
-    setTimeout(overridePWA, 2000);
-    setTimeout(overridePWA, 5000);
+    setTimeout(overridePWA, 1500);
+    setTimeout(overridePWA, 4000);
 
-    // Observer le head pour contrer les réinjections de Streamlit
-    new MutationObserver(function(muts) {
-        muts.forEach(function(mut) {
-            mut.addedNodes.forEach(function(n) {
-                if (n.tagName === 'LINK' && n.rel === 'manifest' && n.href && n.href.indexOf('app/static') === -1) {
+    // MutationObserver : intercepter toute réinjection de Streamlit
+    new MutationObserver(function(muts) {{
+        muts.forEach(function(mut) {{
+            mut.addedNodes.forEach(function(n) {{
+                if (n.tagName === 'LINK' && n.rel === 'manifest' && n.href !== blobUrl) {{
                     n.remove();
                     overridePWA();
-                }
-            });
-        });
-    }).observe(head, { childList: true });
-})();
+                }}
+                if (n.tagName === 'LINK' && (n.rel === 'icon' || n.rel === 'shortcut icon') && n.href.indexOf('app/static') === -1) {{
+                    n.remove();
+                    overridePWA();
+                }}
+            }});
+        }});
+    }}).observe(head, {{ childList: true }});
+}})();
 </script>
 """, height=0)
 
