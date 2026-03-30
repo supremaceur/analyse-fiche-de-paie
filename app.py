@@ -27,94 +27,37 @@ st.set_page_config(
 )
 
 # ============================================================
-# PWA — Stratégie :
-# 1. NE PAS toucher au SW Streamlit (il active le prompt install)
-# 2. Capturer beforeinstallprompt, remplacer le manifest, relancer
-# 3. Bouton install custom en fallback
+# PWA — Favicon et titre personnalisés (l'installation PWA est
+# gérée par la page GitHub Pages wrapper, pas par Streamlit)
 # ============================================================
 components.html("""
 <script>
 (function() {
-    var w = window.parent;
-    var doc = w.document;
+    var doc = window.parent.document;
     var head = doc.head;
     var base = './app/static/';
 
-    // --- Remplacer manifest + favicons + meta ---
-    function overridePWA() {
-        // Manifest : modifier le href existant plutôt que supprimer/recréer
-        var ml = doc.querySelector('link[rel="manifest"]');
-        if (ml) {
-            ml.href = base + 'manifest.json';
-        } else {
-            ml = doc.createElement('link');
-            ml.rel = 'manifest';
-            ml.href = base + 'manifest.json';
-            head.appendChild(ml);
-        }
-
-        // Favicons
+    function customizePage() {
         doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(function(e) { e.remove(); });
-        var f1 = doc.createElement('link');
-        f1.rel='icon'; f1.type='image/png'; f1.sizes='32x32'; f1.href=base+'favicon.png';
-        head.appendChild(f1);
-        var f2 = doc.createElement('link');
-        f2.rel='icon'; f2.type='image/png'; f2.sizes='192x192'; f2.href=base+'icon-192x192.png';
-        head.appendChild(f2);
-
-        // Apple touch icon
-        doc.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function(e) { e.remove(); });
-        var a = doc.createElement('link');
-        a.rel='apple-touch-icon'; a.sizes='180x180'; a.href=base+'apple-touch-icon.png';
-        head.appendChild(a);
-
+        var f = doc.createElement('link');
+        f.rel='icon'; f.type='image/png'; f.sizes='32x32'; f.href=base+'favicon.png';
+        head.appendChild(f);
         doc.title = 'PaySlip Analyzer';
-
-        // Meta tags
-        [['theme-color','#6C63FF'],['application-name','PaySlip Analyzer'],['apple-mobile-web-app-title','PaySlip Analyzer']].forEach(function(p) {
-            var el = doc.querySelector('meta[name="'+p[0]+'"]');
-            if (!el) { el = doc.createElement('meta'); el.name=p[0]; head.appendChild(el); }
-            el.content = p[1];
-        });
     }
 
-    // Exécuter immédiatement et à intervalles
-    overridePWA();
-    [50,200,500,1500,3000,6000].forEach(function(t){ setTimeout(overridePWA, t); });
+    customizePage();
+    setTimeout(customizePage, 300);
+    setTimeout(customizePage, 2000);
 
-    // --- Capturer le prompt d'installation ---
-    var deferredPrompt = null;
-
-    w.addEventListener('beforeinstallprompt', function(e) {
-        // Empêcher le prompt auto de Streamlit (avec mauvais nom/logo)
-        e.preventDefault();
-        deferredPrompt = e;
-        // S'assurer que notre manifest est en place
-        overridePWA();
-        // Relancer le prompt après un court délai (manifest mis à jour)
-        setTimeout(function() {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then(function() { deferredPrompt = null; });
-            }
-        }, 800);
-    });
-
-    // --- MutationObserver : rediriger le manifest Streamlit ---
     new MutationObserver(function(muts) {
         muts.forEach(function(mut) {
             mut.addedNodes.forEach(function(n) {
-                if (n.nodeType !== 1) return;
-                if (n.tagName === 'LINK' && n.rel === 'manifest' && n.href && n.href.indexOf('app/static') === -1) {
-                    // Au lieu de supprimer, on redirige vers notre manifest
-                    n.href = base + 'manifest.json';
-                }
-                if (n.tagName === 'LINK' && (n.rel === 'icon' || n.rel === 'shortcut icon') && n.href && n.href.indexOf('app/static') === -1) {
-                    n.remove();
+                if (n.nodeType === 1 && n.tagName === 'LINK' && (n.rel === 'icon' || n.rel === 'shortcut icon') && n.href.indexOf('app/static') === -1) {
+                    n.remove(); customizePage();
                 }
             });
         });
-    }).observe(head, { childList: true, subtree: false });
+    }).observe(head, { childList: true });
 })();
 </script>
 """, height=0)
