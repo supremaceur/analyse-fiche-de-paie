@@ -20,7 +20,7 @@ from payslip_explainer import find_knowledge
 # ============================================================
 st.set_page_config(
     page_title="PaySlip Analyzer",
-    page_icon="https://img.icons8.com/fluency/48/money-bag.png",
+    page_icon="./app/static/favicon.png",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -33,6 +33,14 @@ st.markdown("""
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PaySlip Analyzer">
+<meta name="application-name" content="PaySlip Analyzer">
+<meta name="theme-color" content="#6C63FF">
+<meta name="msapplication-TileColor" content="#6C63FF">
+<link rel="manifest" href="./app/static/manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="./app/static/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="./app/static/favicon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./app/static/icon-192x192.png">
 <style>
     /* --- Import Google Fonts --- */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
