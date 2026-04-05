@@ -992,9 +992,18 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
 
                     # --- CP N-1 (acquis) ---
                     if acquis_n1.get("droits") or acquis_n1.get("solde"):
-                        droits_n1 = acquis_n1.get("droits", "-")
-                        pris_n1 = acquis_n1.get("pris", "0")
-                        solde_n1 = acquis_n1.get("solde", "-")
+                        droits_n1 = acquis_n1.get("droits", "")
+                        pris_n1 = acquis_n1.get("pris", "")
+                        solde_n1 = acquis_n1.get("solde", "")
+
+                        # Si on n'a que le solde, reconstituer les valeurs
+                        has_detail = bool(droits_n1 and pris_n1)
+                        if not droits_n1:
+                            droits_n1 = "-"
+                        if not pris_n1:
+                            pris_n1 = "-"
+                        if not solde_n1:
+                            solde_n1 = "-"
 
                         # Calcul progression
                         try:
@@ -1004,8 +1013,14 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
                             pct_pris = (p / d * 100) if d > 0 else 0
                             pct_restant = (s / d * 100) if d > 0 else 0
                         except (ValueError, ZeroDivisionError):
-                            pct_pris = 0
-                            pct_restant = 0
+                            # Quand on n'a que le solde
+                            try:
+                                s = float(solde_n1.replace(",", "."))
+                                pct_pris = ((25 - s) / 25 * 100) if s <= 25 else 0
+                                pct_restant = (s / 25 * 100) if s <= 25 else 100
+                            except (ValueError, ZeroDivisionError):
+                                pct_pris = 0
+                                pct_restant = 0
 
                         st.markdown(f"""
                         <div class="glass-card">
@@ -1047,14 +1062,19 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
 
                     # --- CP en cours (N) ---
                     if en_cours.get("acquis") or en_cours.get("solde"):
-                        acquis_n = en_cours.get("acquis", "-")
-                        pris_n = en_cours.get("pris", "0")
-                        solde_n = en_cours.get("solde", "-")
+                        acquis_n = en_cours.get("acquis", "")
+                        pris_n = en_cours.get("pris", "")
+                        solde_n = en_cours.get("solde", "")
+                        if not acquis_n:
+                            acquis_n = "-"
+                        if not pris_n:
+                            pris_n = "0"
+                        if not solde_n:
+                            solde_n = "-"
 
                         try:
                             a = float(acquis_n.replace(",", "."))
-                            max_cp = 25.0  # droits max annuels
-                            pct_acquis = (a / max_cp * 100) if max_cp > 0 else 0
+                            pct_acquis = (a / 25.0 * 100) if a <= 25 else 100
                         except (ValueError, ZeroDivisionError):
                             pct_acquis = 0
 
