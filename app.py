@@ -877,10 +877,11 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
             """, unsafe_allow_html=True)
 
             # --- Tabs ---
-            tab_rem, tab_cot, tab_abs, tab_exp, tab_json = st.tabs([
+            tab_rem, tab_cot, tab_abs, tab_cp, tab_exp, tab_json = st.tabs([
                 "Remuneration",
                 "Cotisations",
                 "Absences",
+                "Conges Payes",
                 "Explications",
                 "Donnees brutes",
             ])
@@ -970,14 +971,144 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
                         unsafe_allow_html=True,
                     )
 
-                conges = resume.get("conges_acquis", "")
-                if conges:
-                    st.markdown(f"""
-                    <div class="glass-card" style="display:inline-block;">
-                        <div class="metric-label">Solde conges acquis</div>
-                        <div class="metric-value green">{conges} jours</div>
+            # --- Tab Conges Payes ---
+            with tab_cp:
+                conges_data = detail.get("conges", {})
+                en_cours = conges_data.get("en_cours", {})
+                acquis_n1 = conges_data.get("acquis_n1", {})
+
+                has_data = any([
+                    en_cours.get("acquis"), en_cours.get("solde"),
+                    acquis_n1.get("droits"), acquis_n1.get("solde"),
+                ])
+
+                if has_data:
+                    st.markdown(
+                        '<div class="section-header" style="font-size:1.1rem;margin-top:0;">'
+                        '<span class="icon">&#127965;</span> Suivi des conges payes'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
+
+                    # --- CP N-1 (acquis) ---
+                    if acquis_n1.get("droits") or acquis_n1.get("solde"):
+                        droits_n1 = acquis_n1.get("droits", "-")
+                        pris_n1 = acquis_n1.get("pris", "0")
+                        solde_n1 = acquis_n1.get("solde", "-")
+
+                        # Calcul progression
+                        try:
+                            d = float(droits_n1.replace(",", "."))
+                            p = float(pris_n1.replace(",", "."))
+                            s = float(solde_n1.replace(",", "."))
+                            pct_pris = (p / d * 100) if d > 0 else 0
+                            pct_restant = (s / d * 100) if d > 0 else 0
+                        except (ValueError, ZeroDivisionError):
+                            pct_pris = 0
+                            pct_restant = 0
+
+                        st.markdown(f"""
+                        <div class="glass-card">
+                            <div class="metric-label" style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;">
+                                Conges acquis (N-1)
+                            </div>
+                            <div class="metric-row">
+                                <div class="metric-card accent-blue">
+                                    <div class="metric-label">Droits acquis</div>
+                                    <div class="metric-value blue">{droits_n1} j</div>
+                                </div>
+                                <div class="metric-card accent-red">
+                                    <div class="metric-label">Pris</div>
+                                    <div class="metric-value red">{pris_n1} j</div>
+                                </div>
+                                <div class="metric-card accent-green">
+                                    <div class="metric-label">Solde restant</div>
+                                    <div class="metric-value green">{solde_n1} j</div>
+                                </div>
+                            </div>
+                            <div style="margin-top:0.8rem;">
+                                <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#9CA3AF;margin-bottom:4px;">
+                                    <span>Pris : {pct_pris:.0f}%</span>
+                                    <span>Restant : {pct_restant:.0f}%</span>
+                                </div>
+                                <div style="background:rgba(255,255,255,0.1);border-radius:8px;height:12px;overflow:hidden;">
+                                    <div style="display:flex;height:100%;">
+                                        <div style="width:{pct_pris}%;background:linear-gradient(90deg,#FF6B6B,#FF8E8E);border-radius:8px 0 0 8px;"></div>
+                                        <div style="width:{pct_restant}%;background:linear-gradient(90deg,#4ECDC4,#6EDDD5);border-radius:0 8px 8px 0;"></div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:1rem;margin-top:6px;font-size:0.75rem;color:#9CA3AF;">
+                                    <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B6B;"></span> Pris</span>
+                                    <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#4ECDC4;"></span> Restant</span>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    # --- CP en cours (N) ---
+                    if en_cours.get("acquis") or en_cours.get("solde"):
+                        acquis_n = en_cours.get("acquis", "-")
+                        pris_n = en_cours.get("pris", "0")
+                        solde_n = en_cours.get("solde", "-")
+
+                        try:
+                            a = float(acquis_n.replace(",", "."))
+                            max_cp = 25.0  # droits max annuels
+                            pct_acquis = (a / max_cp * 100) if max_cp > 0 else 0
+                        except (ValueError, ZeroDivisionError):
+                            pct_acquis = 0
+
+                        st.markdown(f"""
+                        <div class="glass-card" style="margin-top:1rem;">
+                            <div class="metric-label" style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;">
+                                Conges en cours d'acquisition (N)
+                            </div>
+                            <div class="metric-row">
+                                <div class="metric-card accent-blue">
+                                    <div class="metric-label">Acquis</div>
+                                    <div class="metric-value blue">{acquis_n} j</div>
+                                </div>
+                                <div class="metric-card accent-red">
+                                    <div class="metric-label">Pris par anticipation</div>
+                                    <div class="metric-value red">{pris_n} j</div>
+                                </div>
+                                <div class="metric-card accent-green">
+                                    <div class="metric-label">Solde disponible</div>
+                                    <div class="metric-value green">{solde_n} j</div>
+                                </div>
+                            </div>
+                            <div style="margin-top:0.8rem;">
+                                <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#9CA3AF;margin-bottom:4px;">
+                                    <span>Acquisition : {pct_acquis:.0f}% de 25 jours</span>
+                                    <span>{acquis_n} / 25 j</span>
+                                </div>
+                                <div style="background:rgba(255,255,255,0.1);border-radius:8px;height:12px;overflow:hidden;">
+                                    <div style="width:{pct_acquis}%;background:linear-gradient(90deg,#6C63FF,#8B83FF);border-radius:8px;height:100%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    # --- Explications pédagogiques ---
+                    st.markdown("""
+                    <div class="glass-card" style="margin-top:1rem;border-left:3px solid #6C63FF;">
+                        <div class="metric-label" style="font-size:0.95rem;font-weight:600;margin-bottom:0.5rem;">
+                            Comment lire vos conges ?
+                        </div>
+                        <div style="font-size:0.85rem;color:#9CA3AF;line-height:1.7;">
+                            <strong style="color:#4ECDC4;">CP N-1 (acquis)</strong> : conges acquis sur la periode precedente (1er juin N-2 au 31 mai N-1). Ce sont ceux que vous pouvez poser maintenant.<br>
+                            <strong style="color:#6C63FF;">CP N (en cours)</strong> : conges en cours d'acquisition (1er juin N-1 au 31 mai N). Vous gagnez 2,08 jours par mois travaille (25 jours/an).<br>
+                            <strong style="color:#FF6B6B;">Pris</strong> : nombre de jours deja utilises.<br>
+                            <strong style="color:#4ECDC4;">Solde</strong> : jours restants = Droits acquis - Pris.
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
+
+                else:
+                    st.markdown(
+                        '<div class="info-banner">Aucune information de conges disponible sur cette fiche.</div>',
+                        unsafe_allow_html=True,
+                    )
 
             # --- Tab Explications ---
             with tab_exp:

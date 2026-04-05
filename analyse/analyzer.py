@@ -165,5 +165,6 @@ def analyser_fiche(uploaded_file) -> dict:
             "total_verse_employeur": resume.get("total_verse_employeur", 0),
             "mode_paiement": resume.get("mode_paiement", ""),
             "employeur": resume.get("employeur", {}),
+            "conges": resume.get("conges", {}),
         },
     }

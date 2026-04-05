@@ -77,6 +77,13 @@ class PayslipData:
     resume: PayslipSummary = field(default_factory=PayslipSummary)
     conges_acquis: str = ""
     conges_pris: str = ""
+    # Compteurs CP détaillés
+    cp_en_cours_acquis: str = ""      # DT CP EN COURS : droits acquis période en cours (N)
+    cp_en_cours_pris: str = ""        # PRIS CP EN COURS
+    cp_en_cours_solde: str = ""       # SLD CP EN COURS : solde restant période en cours
+    cp_acquis_droits: str = ""        # DT CP EN ACQUIS : droits acquis période précédente (N-1)
+    cp_acquis_pris: str = ""          # PRIS CP ACQUIS : CP pris sur N-1
+    cp_acquis_solde: str = ""         # SLD CP ACQUIS : solde restant N-1
     raw_text: str = ""
 
 
@@ -695,10 +702,34 @@ def parse_payslip(filepath: str) -> PayslipData:
     # Résumé
     payslip.resume = parse_summary(text)
 
-    # Congés
-    m = re.search(r"SLD CP (?:ACQUIS|EN COURS)\s+([\d,]+)", text)
+    # Congés — extraction détaillée
+    # CP en cours (période N : juin → mai)
+    m = re.search(r"DT CP EN COURS\s+([\d,]+)", text)
     if m:
-        payslip.conges_acquis = m.group(1)
+        payslip.cp_en_cours_acquis = m.group(1)
+
+    m = re.search(r"PRIS CP EN COURS\s+([\d,]+)", text)
+    if m:
+        payslip.cp_en_cours_pris = m.group(1)
+
+    m = re.search(r"SLD CP EN COURS\s+([\d,]+)", text)
+    if m:
+        payslip.cp_en_cours_solde = m.group(1)
+
+    # CP acquis (période N-1)
+    m = re.search(r"DT CP EN ACQUIS\s+([\d,]+)", text)
+    if m:
+        payslip.cp_acquis_droits = m.group(1)
+
+    m = re.search(r"PRIS CP ACQUIS\s+([\d,]+)", text)
+    if m:
+        payslip.cp_acquis_pris = m.group(1)
+
+    # SLD CP ACQUIS peut apparaître plusieurs fois, prendre la première
+    m = re.search(r"SLD CP ACQUIS\s+([\d,]+)", text)
+    if m:
+        payslip.cp_acquis_solde = m.group(1)
+        payslip.conges_acquis = m.group(1)  # rétro-compatibilité
 
     return payslip
 
@@ -731,6 +762,18 @@ def payslip_to_dict(payslip: PayslipData) -> dict:
                 "salaire_mensuel_ref": payslip.salarie.salaire_mensuel_ref,
             },
             "conges_acquis": payslip.conges_acquis,
+            "conges": {
+                "en_cours": {
+                    "acquis": payslip.cp_en_cours_acquis,
+                    "pris": payslip.cp_en_cours_pris,
+                    "solde": payslip.cp_en_cours_solde,
+                },
+                "acquis_n1": {
+                    "droits": payslip.cp_acquis_droits,
+                    "pris": payslip.cp_acquis_pris,
+                    "solde": payslip.cp_acquis_solde,
+                },
+            },
             "remuneration_brute": payslip.resume.remuneration_brute,
             "cotisations_salariales": payslip.resume.cotisations_salariales,
             "indemnites_non_soumises": payslip.resume.indemnites_non_soumises,
