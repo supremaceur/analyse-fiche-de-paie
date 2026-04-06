@@ -841,40 +841,42 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
             expanded=(len(resultats) == 1),
         ):
             # --- Metrics Row ---
-            st.markdown(f"""
-            <div class="metric-row">
-                <div class="metric-card accent-blue">
-                    <div class="metric-label">Remuneration brute</div>
-                    <div class="metric-value blue">{r['brut']:.2f} EUR</div>
-                </div>
-                <div class="metric-card accent-red">
-                    <div class="metric-label">Cotisations salariales</div>
-                    <div class="metric-value red">{detail['cotisations_salariales']:.2f} EUR</div>
-                </div>
-                <div class="metric-card accent-amber">
-                    <div class="metric-label">Net avant impot</div>
-                    <div class="metric-value amber">{detail['net_avant_impot']:.2f} EUR</div>
-                </div>
-                <div class="metric-card accent-green">
-                    <div class="metric-label">Net a payer</div>
-                    <div class="metric-value green">{r['net']:.2f} EUR</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="metric-row">'
+                f'<div class="metric-card accent-blue">'
+                f'<div class="metric-label">Remuneration brute</div>'
+                f'<div class="metric-value blue">{r["brut"]:.2f} EUR</div>'
+                f'</div>'
+                f'<div class="metric-card accent-red">'
+                f'<div class="metric-label">Cotisations salariales</div>'
+                f'<div class="metric-value red">{detail["cotisations_salariales"]:.2f} EUR</div>'
+                f'</div>'
+                f'<div class="metric-card accent-amber">'
+                f'<div class="metric-label">Net avant impot</div>'
+                f'<div class="metric-value amber">{detail["net_avant_impot"]:.2f} EUR</div>'
+                f'</div>'
+                f'<div class="metric-card accent-green">'
+                f'<div class="metric-label">Net a payer</div>'
+                f'<div class="metric-value green">{r["net"]:.2f} EUR</div>'
+                f'</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
             # --- Formula ---
             indemnites = resume.get('indemnites_non_soumises', 0)
             retenues = resume.get('autres_retenues', 0)
-            indemnites_line = f'<div class="formula-line"><span class="formula-op">+</span> Indemnites <strong>{indemnites:.2f}</strong></div>' if indemnites else ""
-            st.markdown(f"""
-            <div class="formula-box">
-                <div class="formula-line"><span class="formula-op">&nbsp;</span> Brut <strong>{r['brut']:.2f}</strong></div>
-                <div class="formula-line"><span class="formula-op">-</span> Cotisations <strong>{detail['cotisations_salariales']:.2f}</strong></div>
-                {indemnites_line}
-                <div class="formula-line"><span class="formula-op">-</span> Retenues <strong>{abs(retenues):.2f}</strong></div>
-                <div class="formula-line formula-total"><span class="formula-op">=</span> <span class="result">{r['net']:.2f} EUR</span></div>
-            </div>
-            """, unsafe_allow_html=True)
+            formula_lines = [
+                f'<div class="formula-line"><span class="formula-op">&nbsp;</span> Brut <strong>{r["brut"]:.2f}</strong></div>',
+                f'<div class="formula-line"><span class="formula-op">-</span> Cotisations <strong>{abs(detail["cotisations_salariales"]):.2f}</strong></div>',
+            ]
+            if indemnites:
+                formula_lines.append(f'<div class="formula-line"><span class="formula-op">+</span> Indemnites <strong>{indemnites:.2f}</strong></div>')
+            if retenues:
+                formula_lines.append(f'<div class="formula-line"><span class="formula-op">-</span> Retenues <strong>{abs(retenues):.2f}</strong></div>')
+            formula_lines.append(f'<div class="formula-line formula-total"><span class="formula-op">=</span> <span class="result">{r["net"]:.2f} EUR</span></div>')
+            formula_html = "\n".join(formula_lines)
+            st.markdown(f'<div class="formula-box">{formula_html}</div>', unsafe_allow_html=True)
 
             # --- Tabs ---
             tab_rem, tab_cot, tab_abs, tab_cp, tab_exp, tab_json = st.tabs([
