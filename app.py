@@ -985,163 +985,243 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
                 ])
 
                 if has_data:
+                    # --- Période de la fiche ---
+                    periode_fiche = r.get("periode", "")
                     st.markdown(
                         '<div class="section-header" style="font-size:1.1rem;margin-top:0;">'
-                        '<span class="icon">&#127965;</span> Suivi des conges payes'
+                        '<span class="icon">&#127965;</span> Conges payes — Compteurs de la fiche'
                         '</div>',
                         unsafe_allow_html=True,
                     )
 
-                    # --- CP N-1 (acquis) ---
-                    if acquis_n1.get("droits") or acquis_n1.get("solde"):
-                        droits_n1 = acquis_n1.get("droits", "")
-                        pris_n1 = acquis_n1.get("pris", "")
-                        solde_n1 = acquis_n1.get("solde", "")
-                        has_detail_n1 = bool(droits_n1 and pris_n1)
+                    # --- Avertissement date ---
+                    st.markdown(
+                        '<div style="background:rgba(255,171,0,0.1);border:1px solid rgba(255,171,0,0.3);'
+                        'border-radius:10px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.85rem;color:#FFD166;">'
+                        '<strong>&#9888; Attention :</strong> Les compteurs ci-dessous correspondent '
+                        f'a la fiche de paie analysee (<strong>{periode_fiche}</strong>). '
+                        'Si vous consultez une ancienne fiche, les soldes ne refletent pas votre situation actuelle : '
+                        'vous avez probablement acquis de nouveaux CP depuis, et/ou pose des jours supplementaires.'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
 
-                        if has_detail_n1:
-                            # Cas complet : droits + pris + solde
-                            try:
-                                d = float(droits_n1.replace(",", "."))
-                                p = float(pris_n1.replace(",", "."))
-                                s = float(solde_n1.replace(",", ".")) if solde_n1 else d - p
-                                pct_pris = (p / d * 100) if d > 0 else 0
-                                pct_restant = (s / d * 100) if d > 0 else 0
-                            except (ValueError, ZeroDivisionError):
-                                pct_pris = 0
-                                pct_restant = 0
+                    # --- Extraction des valeurs ---
+                    dt_en_cours = en_cours.get("acquis", "")
+                    pris_en_cours = en_cours.get("pris", "")
+                    sld_en_cours = en_cours.get("solde", "")
+                    dt_acquis = acquis_n1.get("droits", "")
+                    pris_acquis = acquis_n1.get("pris", "")
+                    sld_acquis = acquis_n1.get("solde", "")
 
-                            st.markdown(f"""
-                            <div class="glass-card">
-                                <div class="metric-label" style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;">
-                                    Conges acquis (N-1)
-                                </div>
-                                <div class="metric-row">
-                                    <div class="metric-card accent-blue">
-                                        <div class="metric-label">Droits acquis</div>
-                                        <div class="metric-value blue">{droits_n1} j</div>
-                                    </div>
-                                    <div class="metric-card accent-red">
-                                        <div class="metric-label">Pris</div>
-                                        <div class="metric-value red">{pris_n1} j</div>
-                                    </div>
-                                    <div class="metric-card accent-green">
-                                        <div class="metric-label">Solde restant</div>
-                                        <div class="metric-value green">{solde_n1 or f"{d - p:.2f}".replace(".", ",")} j</div>
-                                    </div>
-                                </div>
-                                <div style="margin-top:0.8rem;">
-                                    <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#9CA3AF;margin-bottom:4px;">
-                                        <span>Pris : {pct_pris:.0f}%</span>
-                                        <span>Restant : {pct_restant:.0f}%</span>
-                                    </div>
-                                    <div style="background:rgba(255,255,255,0.1);border-radius:8px;height:12px;overflow:hidden;">
-                                        <div style="display:flex;height:100%;">
-                                            <div style="width:{pct_pris}%;background:linear-gradient(90deg,#FF6B6B,#FF8E8E);border-radius:8px 0 0 8px;"></div>
-                                            <div style="width:{pct_restant}%;background:linear-gradient(90deg,#4ECDC4,#6EDDD5);border-radius:0 8px 8px 0;"></div>
-                                        </div>
-                                    </div>
-                                    <div style="display:flex;gap:1rem;margin-top:6px;font-size:0.75rem;color:#9CA3AF;">
-                                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B6B;"></span> Pris</span>
-                                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#4ECDC4;"></span> Restant</span>
-                                    </div>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            # Cas solde seul (la plupart des mois)
-                            try:
-                                s = float(solde_n1.replace(",", ".")) if solde_n1 else 0
-                            except ValueError:
-                                s = 0
-                            st.markdown(f"""
-                            <div class="glass-card">
-                                <div class="metric-label" style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;">
-                                    Conges acquis (N-1)
-                                </div>
-                                <div style="display:flex;align-items:center;gap:1.5rem;">
-                                    <div class="metric-card accent-green" style="flex:1;">
-                                        <div class="metric-label">Solde restant</div>
-                                        <div class="metric-value green" style="font-size:2rem;">{solde_n1} j</div>
-                                    </div>
-                                    <div style="flex:1;">
-                                        <div style="font-size:0.85rem;color:#9CA3AF;margin-bottom:6px;">Solde / 25 jours</div>
-                                        <div style="background:rgba(255,255,255,0.1);border-radius:8px;height:14px;overflow:hidden;">
-                                            <div style="width:{min(s / 25 * 100, 100):.0f}%;background:linear-gradient(90deg,#4ECDC4,#6EDDD5);border-radius:8px;height:100%;"></div>
-                                        </div>
-                                        <div style="font-size:0.8rem;color:#4ECDC4;margin-top:4px;">{s:.1f} / 25 jours disponibles</div>
-                                    </div>
-                                </div>
-                                <div style="margin-top:0.8rem;font-size:0.8rem;color:#6B7280;font-style:italic;">
-                                    Le detail (droits/pris) n'apparait pas sur toutes les fiches.
-                                    Consultez une fiche de juin ou aout pour le detail complet.
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                    # --- CP en cours (N) ---
-                    if en_cours.get("acquis") or en_cours.get("solde"):
-                        acquis_n = en_cours.get("acquis", "")
-                        pris_n = en_cours.get("pris", "")
-                        solde_n = en_cours.get("solde", "")
-                        if not acquis_n:
-                            acquis_n = "-"
-                        if not pris_n:
-                            pris_n = "0"
-                        if not solde_n:
-                            solde_n = "-"
-
+                    def _val(s):
+                        """Convertit '16,43' -> 16.43, '' -> None."""
+                        if not s:
+                            return None
                         try:
-                            a = float(acquis_n.replace(",", "."))
-                            pct_acquis = (a / 25.0 * 100) if a <= 25 else 100
-                        except (ValueError, ZeroDivisionError):
-                            pct_acquis = 0
+                            return float(s.replace(",", "."))
+                        except ValueError:
+                            return None
 
-                        st.markdown(f"""
-                        <div class="glass-card" style="margin-top:1rem;">
-                            <div class="metric-label" style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;">
-                                Conges en cours d'acquisition (N)
-                            </div>
-                            <div class="metric-row">
-                                <div class="metric-card accent-blue">
-                                    <div class="metric-label">Acquis</div>
-                                    <div class="metric-value blue">{acquis_n} j</div>
-                                </div>
-                                <div class="metric-card accent-red">
-                                    <div class="metric-label">Pris par anticipation</div>
-                                    <div class="metric-value red">{pris_n} j</div>
-                                </div>
-                                <div class="metric-card accent-green">
-                                    <div class="metric-label">Solde disponible</div>
-                                    <div class="metric-value green">{solde_n} j</div>
-                                </div>
-                            </div>
-                            <div style="margin-top:0.8rem;">
-                                <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#9CA3AF;margin-bottom:4px;">
-                                    <span>Acquisition : {pct_acquis:.0f}% de 25 jours</span>
-                                    <span>{acquis_n} / 25 j</span>
-                                </div>
-                                <div style="background:rgba(255,255,255,0.1);border-radius:8px;height:12px;overflow:hidden;">
-                                    <div style="width:{pct_acquis}%;background:linear-gradient(90deg,#6C63FF,#8B83FF);border-radius:8px;height:100%;"></div>
-                                </div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    # ============================================================
+                    # LIGNE 1 — CP EN COURS (cumul de l'année en cours)
+                    # ============================================================
+                    if dt_en_cours or sld_en_cours:
+                        v_dt = _val(dt_en_cours)
+                        v_sld = _val(sld_en_cours)
+                        pct_acquis = min((v_dt / 25.0 * 100), 100) if v_dt else 0
 
-                    # --- Explications pédagogiques ---
-                    st.markdown("""
-                    <div class="glass-card" style="margin-top:1rem;border-left:3px solid #6C63FF;">
-                        <div class="metric-label" style="font-size:0.95rem;font-weight:600;margin-bottom:0.5rem;">
-                            Comment lire vos conges ?
-                        </div>
-                        <div style="font-size:0.85rem;color:#9CA3AF;line-height:1.7;">
-                            <strong style="color:#4ECDC4;">CP N-1 (acquis)</strong> : conges acquis sur la periode precedente (1er juin N-2 au 31 mai N-1). Ce sont ceux que vous pouvez poser maintenant.<br>
-                            <strong style="color:#6C63FF;">CP N (en cours)</strong> : conges en cours d'acquisition (1er juin N-1 au 31 mai N). Vous gagnez 2,08 jours par mois travaille (25 jours/an).<br>
-                            <strong style="color:#FF6B6B;">Pris</strong> : nombre de jours deja utilises.<br>
-                            <strong style="color:#4ECDC4;">Solde</strong> : jours restants = Droits acquis - Pris.
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        # Cartes
+                        cards = []
+                        cards.append(
+                            '<div class="metric-card accent-blue">'
+                            f'<div class="metric-label">DT CP EN COURS</div>'
+                            f'<div class="metric-value blue">{dt_en_cours or "-"} j</div>'
+                            '</div>'
+                        )
+                        cards.append(
+                            '<div class="metric-card accent-green">'
+                            f'<div class="metric-label">SLD CP EN COURS</div>'
+                            f'<div class="metric-value green">{sld_en_cours or "-"} j</div>'
+                            '</div>'
+                        )
+                        cards_html = "".join(cards)
+
+                        # Barre de progression
+                        bar_html = (
+                            '<div style="margin-top:0.8rem;">'
+                            '<div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#9CA3AF;margin-bottom:4px;">'
+                            f'<span>Acquisition : {pct_acquis:.0f}% de 25 jours</span>'
+                            f'<span>{dt_en_cours or "0"} / 25 j</span>'
+                            '</div>'
+                            '<div style="background:rgba(255,255,255,0.1);border-radius:8px;height:12px;overflow:hidden;">'
+                            f'<div style="width:{pct_acquis:.0f}%;background:linear-gradient(90deg,#6C63FF,#8B83FF);border-radius:8px;height:100%;"></div>'
+                            '</div>'
+                            '</div>'
+                        )
+
+                        st.markdown(
+                            '<div class="glass-card">'
+                            '<div style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;color:#8B83FF;">'
+                            '&#128197; Ligne 1 — Cumul de l\'annee en cours (CP EN COURS)'
+                            '</div>'
+                            '<div style="font-size:0.85rem;color:#9CA3AF;margin-bottom:0.8rem;line-height:1.6;">'
+                            'Ces conges sont en train de se cumuler pour l\'annee prochaine '
+                            '(periode du 1er juin au 31 mai). Vous gagnez <strong style="color:#6C63FF;">2,08 jours par mois</strong> travaille.'
+                            '</div>'
+                            f'<div class="metric-row">{cards_html}</div>'
+                            f'{bar_html}'
+                            '<div style="margin-top:0.8rem;font-size:0.82rem;color:#9CA3AF;line-height:1.7;">'
+                            '<strong style="color:#6C63FF;">DT CP EN COURS'
+                            f' ({dt_en_cours or "-"})</strong> : Droits aux Conges Payes en cours. '
+                            'Nombre de jours cumules depuis le debut de la periode de reference actuelle.<br>'
+                            '<strong style="color:#4ECDC4;">SLD CP EN COURS'
+                            f' ({sld_en_cours or "-"})</strong> : Solde des Conges Payes en cours. '
+                            'Comme ces jours ne sont generalement pas encore posables, '
+                            'le solde est souvent identique aux droits.'
+                            '</div>'
+                            '</div>',
+                            unsafe_allow_html=True,
+                        )
+
+                    # ============================================================
+                    # LIGNE 2 — CP ACQUIS (ceux que vous pouvez poser)
+                    # ============================================================
+                    if dt_acquis or pris_acquis or sld_acquis:
+                        v_dt_a = _val(dt_acquis)
+                        v_pris_a = _val(pris_acquis)
+                        v_sld_a = _val(sld_acquis)
+
+                        # Calcul pourcentages
+                        if v_dt_a and v_dt_a > 0:
+                            pct_pris = (v_pris_a / v_dt_a * 100) if v_pris_a else 0
+                            pct_rest = (v_sld_a / v_dt_a * 100) if v_sld_a else 0
+                        else:
+                            pct_pris = 0
+                            pct_rest = (v_sld_a / 25.0 * 100) if v_sld_a else 0
+
+                        # Cartes
+                        cards2 = []
+                        if dt_acquis:
+                            cards2.append(
+                                '<div class="metric-card accent-blue">'
+                                '<div class="metric-label">DT CP ACQUIS</div>'
+                                f'<div class="metric-value blue">{dt_acquis} j</div>'
+                                '</div>'
+                            )
+                        if pris_acquis:
+                            cards2.append(
+                                '<div class="metric-card accent-red">'
+                                '<div class="metric-label">PRIS CP ACQUIS</div>'
+                                f'<div class="metric-value red">{pris_acquis} j</div>'
+                                '</div>'
+                            )
+                        if sld_acquis:
+                            cards2.append(
+                                '<div class="metric-card accent-green">'
+                                '<div class="metric-label">SLD CP ACQUIS</div>'
+                                f'<div class="metric-value green">{sld_acquis} j</div>'
+                                '</div>'
+                            )
+                        cards2_html = "".join(cards2)
+
+                        # Barre pris/restant
+                        has_full_detail = bool(dt_acquis and pris_acquis)
+                        if has_full_detail:
+                            bar2_html = (
+                                '<div style="margin-top:0.8rem;">'
+                                '<div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#9CA3AF;margin-bottom:4px;">'
+                                f'<span>Pris : {pct_pris:.0f}%</span>'
+                                f'<span>Restant : {pct_rest:.0f}%</span>'
+                                '</div>'
+                                '<div style="background:rgba(255,255,255,0.1);border-radius:8px;height:12px;overflow:hidden;">'
+                                '<div style="display:flex;height:100%;">'
+                                f'<div style="width:{pct_pris:.0f}%;background:linear-gradient(90deg,#FF6B6B,#FF8E8E);border-radius:8px 0 0 8px;"></div>'
+                                f'<div style="width:{pct_rest:.0f}%;background:linear-gradient(90deg,#4ECDC4,#6EDDD5);border-radius:0 8px 8px 0;"></div>'
+                                '</div></div>'
+                                '<div style="display:flex;gap:1rem;margin-top:6px;font-size:0.75rem;color:#9CA3AF;">'
+                                '<span style="display:flex;align-items:center;gap:4px;">'
+                                '<span style="width:8px;height:8px;border-radius:50%;background:#FF6B6B;"></span> Pris</span>'
+                                '<span style="display:flex;align-items:center;gap:4px;">'
+                                '<span style="width:8px;height:8px;border-radius:50%;background:#4ECDC4;"></span> Restant</span>'
+                                '</div></div>'
+                            )
+                        else:
+                            bar2_html = (
+                                '<div style="margin-top:0.8rem;">'
+                                '<div style="font-size:0.8rem;color:#9CA3AF;margin-bottom:4px;">'
+                                f'Solde : {sld_acquis or "-"} / 25 jours</div>'
+                                '<div style="background:rgba(255,255,255,0.1);border-radius:8px;height:12px;overflow:hidden;">'
+                                f'<div style="width:{min(pct_rest, 100):.0f}%;background:linear-gradient(90deg,#4ECDC4,#6EDDD5);border-radius:8px;height:100%;"></div>'
+                                '</div></div>'
+                            )
+
+                        # Explications ligne 2
+                        expl2_parts = []
+                        if dt_acquis:
+                            expl2_parts.append(
+                                f'<strong style="color:#6C63FF;">DT CP ACQUIS ({dt_acquis})</strong> : '
+                                'Droits aux Conges Payes acquis. Total de jours gagnes sur la periode '
+                                'precedente (1er juin N-2 au 31 mai N-1). C\'est votre reserve totale.'
+                            )
+                        if pris_acquis:
+                            expl2_parts.append(
+                                f'<strong style="color:#FF6B6B;">PRIS CP ACQUIS ({pris_acquis})</strong> : '
+                                'Conges Payes acquis deja pris. Nombre de jours que vous avez poses '
+                                'et consommes sur cette reserve.'
+                            )
+                        expl2_html = "<br>".join(expl2_parts)
+
+                        st.markdown(
+                            '<div class="glass-card" style="margin-top:1rem;">'
+                            '<div style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;color:#4ECDC4;">'
+                            '&#9989; Ligne 2 — Conges acquis (CP ACQUIS) — ceux que vous pouvez poser'
+                            '</div>'
+                            '<div style="font-size:0.85rem;color:#9CA3AF;margin-bottom:0.8rem;line-height:1.6;">'
+                            'Ces conges ont ete accumules sur la periode precedente. '
+                            'Ce sont ceux que vous etes en train d\'utiliser cette annee.'
+                            '</div>'
+                            f'<div class="metric-row">{cards2_html}</div>'
+                            f'{bar2_html}'
+                            + (f'<div style="margin-top:0.8rem;font-size:0.82rem;color:#9CA3AF;line-height:1.7;">{expl2_html}</div>' if expl2_html else '')
+                            + '</div>',
+                            unsafe_allow_html=True,
+                        )
+
+                    # ============================================================
+                    # LIGNE 3 — SLD CP ACQUIS (reste à poser) — résumé final
+                    # ============================================================
+                    if sld_acquis:
+                        calcul_parts = []
+                        if dt_acquis and pris_acquis:
+                            calcul_parts.append(f'{dt_acquis} jours acquis - {pris_acquis} jours pris')
+                        calcul_txt = (" = ".join(calcul_parts) + f' = <strong>{sld_acquis} jours restants</strong>') if calcul_parts else ""
+
+                        st.markdown(
+                            '<div class="glass-card" style="margin-top:1rem;border-left:3px solid #4ECDC4;">'
+                            '<div style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;color:#4ECDC4;">'
+                            f'&#127944; Ligne 3 — Reste a poser : <span style="font-size:1.3rem;">{sld_acquis} jours</span>'
+                            '</div>'
+                            '<div style="font-size:0.85rem;color:#9CA3AF;line-height:1.7;">'
+                            f'<strong style="color:#4ECDC4;">SLD CP ACQUIS ({sld_acquis})</strong> : '
+                            'Solde des Conges Payes acquis. C\'est le nombre de jours qu\'il vous '
+                            'reste a poser (generalement avant le 31 mai).'
+                            + (f'<br><br><span style="color:#B8B5FF;">Calcul : {calcul_txt}</span>' if calcul_txt else '')
+                            + '</div></div>',
+                            unsafe_allow_html=True,
+                        )
+
+                    # ============================================================
+                    # Nota : detail pas toujours présent
+                    # ============================================================
+                    if not dt_acquis and not pris_acquis and sld_acquis:
+                        st.markdown(
+                            '<div style="font-size:0.82rem;color:#6B7280;font-style:italic;margin-top:0.5rem;">'
+                            'Le detail (DT CP ACQUIS / PRIS CP ACQUIS) n\'apparait pas sur toutes les fiches de paie. '
+                            'Consultez une fiche de juin, aout ou octobre pour voir le detail complet des 3 lignes.'
+                            '</div>',
+                            unsafe_allow_html=True,
+                        )
 
                 else:
                     st.markdown(
