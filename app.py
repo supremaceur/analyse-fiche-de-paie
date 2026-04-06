@@ -995,70 +995,87 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
                         droits_n1 = acquis_n1.get("droits", "")
                         pris_n1 = acquis_n1.get("pris", "")
                         solde_n1 = acquis_n1.get("solde", "")
+                        has_detail_n1 = bool(droits_n1 and pris_n1)
 
-                        # Si on n'a que le solde, reconstituer les valeurs
-                        has_detail = bool(droits_n1 and pris_n1)
-                        if not droits_n1:
-                            droits_n1 = "-"
-                        if not pris_n1:
-                            pris_n1 = "-"
-                        if not solde_n1:
-                            solde_n1 = "-"
-
-                        # Calcul progression
-                        try:
-                            d = float(droits_n1.replace(",", "."))
-                            p = float(pris_n1.replace(",", "."))
-                            s = float(solde_n1.replace(",", "."))
-                            pct_pris = (p / d * 100) if d > 0 else 0
-                            pct_restant = (s / d * 100) if d > 0 else 0
-                        except (ValueError, ZeroDivisionError):
-                            # Quand on n'a que le solde
+                        if has_detail_n1:
+                            # Cas complet : droits + pris + solde
                             try:
-                                s = float(solde_n1.replace(",", "."))
-                                pct_pris = ((25 - s) / 25 * 100) if s <= 25 else 0
-                                pct_restant = (s / 25 * 100) if s <= 25 else 100
+                                d = float(droits_n1.replace(",", "."))
+                                p = float(pris_n1.replace(",", "."))
+                                s = float(solde_n1.replace(",", ".")) if solde_n1 else d - p
+                                pct_pris = (p / d * 100) if d > 0 else 0
+                                pct_restant = (s / d * 100) if d > 0 else 0
                             except (ValueError, ZeroDivisionError):
                                 pct_pris = 0
                                 pct_restant = 0
 
-                        st.markdown(f"""
-                        <div class="glass-card">
-                            <div class="metric-label" style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;">
-                                Conges acquis (N-1)
-                            </div>
-                            <div class="metric-row">
-                                <div class="metric-card accent-blue">
-                                    <div class="metric-label">Droits acquis</div>
-                                    <div class="metric-value blue">{droits_n1} j</div>
+                            st.markdown(f"""
+                            <div class="glass-card">
+                                <div class="metric-label" style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;">
+                                    Conges acquis (N-1)
                                 </div>
-                                <div class="metric-card accent-red">
-                                    <div class="metric-label">Pris</div>
-                                    <div class="metric-value red">{pris_n1} j</div>
-                                </div>
-                                <div class="metric-card accent-green">
-                                    <div class="metric-label">Solde restant</div>
-                                    <div class="metric-value green">{solde_n1} j</div>
-                                </div>
-                            </div>
-                            <div style="margin-top:0.8rem;">
-                                <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#9CA3AF;margin-bottom:4px;">
-                                    <span>Pris : {pct_pris:.0f}%</span>
-                                    <span>Restant : {pct_restant:.0f}%</span>
-                                </div>
-                                <div style="background:rgba(255,255,255,0.1);border-radius:8px;height:12px;overflow:hidden;">
-                                    <div style="display:flex;height:100%;">
-                                        <div style="width:{pct_pris}%;background:linear-gradient(90deg,#FF6B6B,#FF8E8E);border-radius:8px 0 0 8px;"></div>
-                                        <div style="width:{pct_restant}%;background:linear-gradient(90deg,#4ECDC4,#6EDDD5);border-radius:0 8px 8px 0;"></div>
+                                <div class="metric-row">
+                                    <div class="metric-card accent-blue">
+                                        <div class="metric-label">Droits acquis</div>
+                                        <div class="metric-value blue">{droits_n1} j</div>
+                                    </div>
+                                    <div class="metric-card accent-red">
+                                        <div class="metric-label">Pris</div>
+                                        <div class="metric-value red">{pris_n1} j</div>
+                                    </div>
+                                    <div class="metric-card accent-green">
+                                        <div class="metric-label">Solde restant</div>
+                                        <div class="metric-value green">{solde_n1 or f"{d - p:.2f}".replace(".", ",")} j</div>
                                     </div>
                                 </div>
-                                <div style="display:flex;gap:1rem;margin-top:6px;font-size:0.75rem;color:#9CA3AF;">
-                                    <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B6B;"></span> Pris</span>
-                                    <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#4ECDC4;"></span> Restant</span>
+                                <div style="margin-top:0.8rem;">
+                                    <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#9CA3AF;margin-bottom:4px;">
+                                        <span>Pris : {pct_pris:.0f}%</span>
+                                        <span>Restant : {pct_restant:.0f}%</span>
+                                    </div>
+                                    <div style="background:rgba(255,255,255,0.1);border-radius:8px;height:12px;overflow:hidden;">
+                                        <div style="display:flex;height:100%;">
+                                            <div style="width:{pct_pris}%;background:linear-gradient(90deg,#FF6B6B,#FF8E8E);border-radius:8px 0 0 8px;"></div>
+                                            <div style="width:{pct_restant}%;background:linear-gradient(90deg,#4ECDC4,#6EDDD5);border-radius:0 8px 8px 0;"></div>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex;gap:1rem;margin-top:6px;font-size:0.75rem;color:#9CA3AF;">
+                                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B6B;"></span> Pris</span>
+                                        <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#4ECDC4;"></span> Restant</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                            """, unsafe_allow_html=True)
+                        else:
+                            # Cas solde seul (la plupart des mois)
+                            try:
+                                s = float(solde_n1.replace(",", ".")) if solde_n1 else 0
+                            except ValueError:
+                                s = 0
+                            st.markdown(f"""
+                            <div class="glass-card">
+                                <div class="metric-label" style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;">
+                                    Conges acquis (N-1)
+                                </div>
+                                <div style="display:flex;align-items:center;gap:1.5rem;">
+                                    <div class="metric-card accent-green" style="flex:1;">
+                                        <div class="metric-label">Solde restant</div>
+                                        <div class="metric-value green" style="font-size:2rem;">{solde_n1} j</div>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <div style="font-size:0.85rem;color:#9CA3AF;margin-bottom:6px;">Solde / 25 jours</div>
+                                        <div style="background:rgba(255,255,255,0.1);border-radius:8px;height:14px;overflow:hidden;">
+                                            <div style="width:{min(s / 25 * 100, 100):.0f}%;background:linear-gradient(90deg,#4ECDC4,#6EDDD5);border-radius:8px;height:100%;"></div>
+                                        </div>
+                                        <div style="font-size:0.8rem;color:#4ECDC4;margin-top:4px;">{s:.1f} / 25 jours disponibles</div>
+                                    </div>
+                                </div>
+                                <div style="margin-top:0.8rem;font-size:0.8rem;color:#6B7280;font-style:italic;">
+                                    Le detail (droits/pris) n'apparait pas sur toutes les fiches.
+                                    Consultez une fiche de juin ou aout pour le detail complet.
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                     # --- CP en cours (N) ---
                     if en_cours.get("acquis") or en_cours.get("solde"):
