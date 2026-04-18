@@ -1400,7 +1400,7 @@ with st.form("form_fiscal"):
         unsafe_allow_html=True,
     )
 
-    col_rev, col_jours = st.columns(2)
+    col_rev, col_jours, col_syndicat = st.columns(3)
     with col_rev:
         if _resultats_dispo:
             revenu_manuel = st.number_input(
@@ -1429,6 +1429,16 @@ with st.form("form_fiscal"):
             step=1,
             help="Nombre de jours effectivement travailles (hors week-ends, conges, RTT). "
                  "En moyenne : 218 jours/an pour un temps plein.",
+        )
+    with col_syndicat:
+        cotisation_syndicale = st.number_input(
+            "\U0001F91D Cotisation syndicale annuelle (\u20ac)",
+            min_value=0.0,
+            value=0.0,
+            step=10.0,
+            help="Montant annuel de vos cotisations syndicales. "
+                 "Elles sont deductibles en frais reels (CGI art. 83, 3\u00b0). "
+                 "Saisissez le montant total annuel — ne pas mensualiser.",
         )
 
     st.markdown('<div style="height:0.5rem;"></div>', unsafe_allow_html=True)
@@ -1581,6 +1591,7 @@ if submitted:
             "inclure_tickets_resto": inclure_tickets,
             "mutuelle_auto": _mutuelle_auto,
             "inclure_mutuelle": inclure_mutuelle,
+            "cotisation_syndicale": cotisation_syndicale,
             "autres_frais": autres_frais,
             "revenu_manuel": revenu_manuel,
         }
@@ -1726,14 +1737,20 @@ if submitted:
             if fr["tickets_resto"] > 0:
                 detail_lines.append(
                     f'<div style="display:flex;justify-content:space-between;">'
-                    f'<span>\U0001F3AB Tickets restaurant — part salariale (RET. TITRE REPAS)</span>'
+                    f'<span>\U0001F3AB Tickets restaurant — part salarie (RET. TITRE REPAS)</span>'
                     f'<strong>{fr["tickets_resto"]:,.2f} \u20ac</strong></div>'
                 )
             if fr["mutuelle"] > 0:
                 detail_lines.append(
                     f'<div style="display:flex;justify-content:space-between;">'
-                    f'<span>\U0001FA7A Mutuelle obligatoire (COMPLEMENTAIRE SANTE)</span>'
+                    f'<span>\U0001FA7A Mutuelle obligatoire — part salarie (COMPLEMENTAIRE SANTE)</span>'
                     f'<strong>{fr["mutuelle"]:,.2f} \u20ac</strong></div>'
+                )
+            if fr.get("cotisation_syndicale", 0) > 0:
+                detail_lines.append(
+                    f'<div style="display:flex;justify-content:space-between;">'
+                    f'<span>\U0001F91D Cotisation syndicale annuelle</span>'
+                    f'<strong>{fr["cotisation_syndicale"]:,.2f} \u20ac</strong></div>'
                 )
             if fr["autres_frais"] > 0:
                 detail_lines.append(

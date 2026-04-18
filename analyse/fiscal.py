@@ -462,8 +462,19 @@ def analyse_fiscale(
     # --- 6. Autres frais ---
     autres_frais = _safe_float(inputs.get("autres_frais", 0))
 
+    # --- 6b. Cotisation syndicale annuelle ---
+    # Déductible en frais réels (CGI art. 83, 3°) — valeur saisie par l'utilisateur,
+    # jamais extrapolée ni recalculée depuis les fiches.
+    cotisation_syndicale = _safe_float(inputs.get("cotisation_syndicale", 0))
+
     # --- 7. Total frais réels ---
-    total_frais_reels = frais_km_montant + frais_repas_total + mutuelle_deductible + autres_frais
+    total_frais_reels = (
+        frais_km_montant
+        + frais_repas_total
+        + mutuelle_deductible
+        + autres_frais
+        + cotisation_syndicale
+    )
 
     # --- 6. Abattement forfaitaire ---
     abo = calcul_abattement_forfaitaire(revenu_annuel_estime)
@@ -518,6 +529,7 @@ def analyse_fiscale(
             "tickets_resto": tickets_resto,
             "frais_repas_total": round(frais_repas_total, 2),
             "mutuelle": round(mutuelle_deductible, 2),
+            "cotisation_syndicale": round(cotisation_syndicale, 2),
             "autres_frais": autres_frais,
             "total": round(total_frais_reels, 2),
         },

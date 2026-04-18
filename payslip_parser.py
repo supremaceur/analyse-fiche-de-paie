@@ -574,6 +574,27 @@ def parse_payslip_lines(text: str) -> list:
                             elif len(raw_all) >= 2:
                                 line.nombre_ou_base = str(int(raw_vals[0]) / 100)
                                 line.montant_employeur = _parse_line_amount(raw_all[-1])
+                    elif matched_designation in (
+                        "COMPLEMENTAIRE SANTE OBLIGATOIRE",
+                        "COMPLEMENTAIRE SANTE",
+                        "COMPLEMENTAIRE INCAPACITE INVALIDITE DECES TA",
+                    ):
+                        # Cotisation mixte salarié + patronal.
+                        # RÈGLE : montant_employe = part salarié UNIQUEMENT (colonne 3)
+                        #          montant_employeur = part patronale (colonne 4)
+                        # Format PDF : BASE  TAUX  MONTANT_EMP  MONTANT_PATRON
+                        if len(raw_vals) >= 4:
+                            line.nombre_ou_base = str(int(raw_vals[0]) / 100)
+                            line.taux_ou_pourcent = str(int(raw_vals[1]) / 10000)
+                            line.montant_employe = _parse_line_amount(raw_vals[2])    # part salarié
+                            line.montant_employeur = _parse_line_amount(raw_vals[3])  # part patronale
+                        elif len(raw_vals) >= 3:
+                            line.nombre_ou_base = str(int(raw_vals[0]) / 100)
+                            line.taux_ou_pourcent = str(int(raw_vals[1]) / 10000)
+                            line.montant_employe = _parse_line_amount(raw_vals[2])    # part salarié
+                        elif len(raw_vals) >= 2:
+                            line.nombre_ou_base = str(int(raw_vals[0]) / 100)
+                            line.montant_employe = _parse_line_amount(raw_vals[1])    # part salarié (base seule)
                     elif matched_designation == "TRANSPORT PROVINCE":
                         if numbers:
                             line.montant_employe = _parse_line_amount(numbers[0])
