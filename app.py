@@ -13,6 +13,7 @@ import streamlit.components.v1 as components
 import pandas as pd
 import json
 from analyse.analyzer import analyser_fiche
+from analyse.fiscal import analyse_fiscale, extraire_donnees_annuelles
 from payslip_explainer import find_knowledge
 
 
@@ -1297,6 +1298,408 @@ if "resultats" in st.session_state and st.session_state["resultats"]:
                     file_name=f"{os.path.splitext(fichier)[0]}_analyse.json",
                     mime="application/json",
                 )
+
+
+# ============================================================
+# ONGLET IMPÔT — Simulateur frais réels vs abattement 10%
+# ============================================================
+st.markdown('<div style="margin-top:2.5rem;"></div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="section-header">'
+    '<span class="icon">&#128202;</span> Simulateur fiscal — Frais reels vs Abattement 10%'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+# Contexte pédagogique
+st.markdown(
+    '<div class="glass-card" style="border-left:3px solid #6C63FF;margin-bottom:1.2rem;">'
+    '<div style="font-size:0.92rem;color:#9CA3AF;line-height:1.75;">'
+    '<strong style="color:#B8B5FF;">Pourquoi ce simulateur ?</strong><br>'
+    'Chaque annee, lors de votre declaration d\'impots, vous choisissez entre deux options :<br>'
+    '<strong style="color:#6C63FF;">&#9312; Abattement forfaitaire de 10%</strong> — '
+    'l\'administration deduit automatiquement 10% de vos revenus (min 499 € / max 13 643 €).<br>'
+    '<strong style="color:#4ECDC4;">&#9313; Deduction des frais reels</strong> — '
+    'vous deduisez vos vraies depenses professionnelles (trajets, repas, formation…).<br>'
+    'Ce simulateur calcule quelle option vous fait payer le moins d\'impots.'
+    '</div>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+# Récupération des fiches disponibles
+_resultats_dispo = st.session_state.get("resultats", [])
+if _resultats_dispo:
+    _donnees_dispo = extraire_donnees_annuelles(_resultats_dispo)
+    _annee = _donnees_dispo.get("annee_detectee")
+    _mois = _donnees_dispo.get("mois_disponibles", 0)
+    _revenu_dispo = _donnees_dispo.get("revenu_fiscal_brut", 0)
+    st.markdown(
+        f'<div class="info-banner" style="margin-bottom:1rem;">'
+        f'&#128200; <strong>{_mois} fiche(s) disponible(s)</strong>'
+        + (f' — Annee detectee : <strong>{_annee}</strong>' if _annee else '')
+        + f' — Revenu fiscal cumule : <strong>{_revenu_dispo:,.2f} €</strong>'
+        + (' <em style="color:#FFD166;">(annee incomplete — extrapolation possible)</em>' if _mois < 12 else '')
+        + '</div>',
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        '<div class="info-banner" style="border-color:rgba(255,171,0,0.4);background:rgba(255,171,0,0.08);margin-bottom:1rem;">'
+        '&#9888; Aucune fiche analysee. Deposez vos fiches dans la zone d\'upload ci-dessus, '
+        'puis revenez ici — ou saisissez votre revenu annuel manuellement.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+# ---- FORMULAIRE ----
+with st.form("form_fiscal"):
+    st.markdown(
+        '<div style="font-size:1rem;font-weight:600;color:#B8B5FF;margin-bottom:0.5rem;">'
+        '&#9997; Vos informations personnelles'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    col_rev, col_jours = st.columns(2)
+    with col_rev:
+        if _resultats_dispo:
+            revenu_manuel = st.number_input(
+                "Revenu fiscal annuel (€) — pre-rempli depuis vos fiches",
+                min_value=0.0,
+                value=float(_revenu_dispo) if _resultats_dispo else 0.0,
+                step=100.0,
+                help="Le revenu net imposable total issu de vos fiches de paie. "
+                     "Vous pouvez le corriger si certains mois manquent.",
+            )
+        else:
+            revenu_manuel = st.number_input(
+                "Revenu fiscal annuel (€) — a saisir manuellement",
+                min_value=0.0,
+                value=0.0,
+                step=100.0,
+                help="Votre revenu net imposable annuel, visible sur votre dernier bulletin "
+                     "ou sur votre declaration pre-remplie.",
+            )
+    with col_jours:
+        jours_travailles = st.number_input(
+            "Jours travailles dans l'annee",
+            min_value=0,
+            max_value=365,
+            value=218,
+            step=1,
+            help="Nombre de jours effectivement travailles (hors week-ends, conges, RTT). "
+                 "En moyenne : 218 jours/an pour un temps plein.",
+        )
+
+    st.markdown('<div style="height:0.5rem;"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-size:1rem;font-weight:600;color:#B8B5FF;margin-bottom:0.5rem;">'
+        '&#128664; Frais de trajet domicile — travail'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    col_v1, col_v2, col_v3 = st.columns([2, 2, 1])
+    with col_v1:
+        type_vehicule = st.selectbox(
+            "Type de vehicule",
+            ["voiture", "moto", "cyclo"],
+            format_func=lambda x: {
+                "voiture": "\U0001F697 Voiture (essence / diesel)",
+                "moto": "\U0001F3CD Motocyclette (> 50 cm\u00B3)",
+                "cyclo": "\U0001F6F5 Cyclomoteur / scooter (\u226450 cm\u00B3)",
+            }[x],
+            help="Choisissez le vehicule que vous utilisez pour aller au travail.",
+        )
+    with col_v2:
+        if type_vehicule == "voiture":
+            cv_fiscaux = st.selectbox(
+                "Puissance fiscale (CV)",
+                [3, 4, 5, 6, 7],
+                index=2,
+                help="Nombre de chevaux fiscaux de votre voiture, visible sur la carte grise (rubrique P.6).",
+            )
+            cv_moto = "3-5"
+        elif type_vehicule == "moto":
+            cv_moto = st.selectbox(
+                "Cylindree moto",
+                ["1-2", "3-5", "6+"],
+                index=1,
+                format_func=lambda x: {"1-2": "1 ou 2 CV", "3-5": "3, 4 ou 5 CV", "6+": "6 CV et plus"}[x],
+            )
+            cv_fiscaux = 5
+        else:
+            st.markdown('<div style="color:#9CA3AF;font-size:0.85rem;padding-top:1.5rem;">Tarif unique (≤ 50 cm³)</div>', unsafe_allow_html=True)
+            cv_fiscaux = 3
+            cv_moto = "3-5"
+    with col_v3:
+        electrique = st.checkbox(
+            "Vehicule electrique",
+            value=False,
+            help="Les vehicules electriques beneficient d'un bonus de 20% sur le bareme kilometrique.",
+        )
+
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        distance_km = st.number_input(
+            "Distance domicile → travail (km, sens aller)",
+            min_value=0.0,
+            max_value=500.0,
+            value=0.0,
+            step=0.5,
+            help="Distance en kilometres de votre domicile jusqu'a votre lieu de travail (un seul sens). "
+                 "Le calcul multipliera par 2 pour l'aller-retour.",
+        )
+    with col_d2:
+        st.markdown(
+            '<div style="font-size:0.82rem;color:#9CA3AF;padding-top:1.6rem;line-height:1.6;">'
+            'Le bareme fiscal 2026 prend en compte :<br>'
+            '&#10003; L\'usure du vehicule<br>'
+            '&#10003; Le carburant<br>'
+            '&#10003; L\'assurance et les reparations'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown('<div style="height:0.5rem;"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-size:1rem;font-weight:600;color:#B8B5FF;margin-bottom:0.5rem;">'
+        '&#127860; Frais de repas et autres frais professionnels'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    col_r1, col_r2 = st.columns(2)
+    with col_r1:
+        frais_repas = st.number_input(
+            "Frais de repas non rembourses (€/an)",
+            min_value=0.0,
+            value=float(round(_donnees_dispo.get("tickets_resto_salarie", 0), 2)) if _resultats_dispo else 0.0,
+            step=10.0,
+            help="Part des repas prise en charge par vous-meme (apres deduction des tickets restaurant). "
+                 "Detecte automatiquement depuis vos fiches si disponible.",
+        )
+    with col_r2:
+        autres_frais = st.number_input(
+            "Autres frais professionnels (€/an)",
+            min_value=0.0,
+            value=0.0,
+            step=50.0,
+            help="Formation, outils, vetements professionnels, abonnements professionnels… "
+                 "Saisissez le montant total annuel non rembourse par l'employeur.",
+        )
+
+    # Avertissement si revenu < 1
+    submitted = st.form_submit_button(
+        "&#128200; Analyser ma situation fiscale",
+        type="primary",
+        use_container_width=True,
+    )
+
+# ---- RÉSULTATS ----
+if submitted:
+    if revenu_manuel < 1:
+        st.markdown(
+            '<div style="background:rgba(255,100,100,0.1);border:1px solid rgba(255,100,100,0.3);'
+            'border-radius:10px;padding:0.8rem 1rem;color:#FF6B6B;font-size:0.9rem;">'
+            '&#9888; Le revenu annuel doit etre superieur a 0 pour effectuer le calcul.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        inputs_fiscal = {
+            "type_vehicule": type_vehicule,
+            "cv_fiscaux": cv_fiscaux,
+            "cv_moto": cv_moto,
+            "electrique": electrique,
+            "distance_km": distance_km,
+            "jours_travailles": jours_travailles,
+            "frais_repas": frais_repas,
+            "autres_frais": autres_frais,
+            "revenu_manuel": revenu_manuel,
+        }
+        _res_fiscaux = _resultats_dispo if _resultats_dispo else []
+        result_fiscal = analyse_fiscale(_res_fiscaux, inputs_fiscal)
+
+        # ---- Carte résumé ----
+        opt = result_fiscal["option_optimale"]
+        gain = result_fiscal["gain_fiscal"]
+        abo = result_fiscal["abattement"]
+        fr = result_fiscal["frais_reels"]
+        rev = result_fiscal["revenu_annuel_estime"]
+        rev_abo = result_fiscal["revenu_apres_abattement"]
+        rev_fr = result_fiscal["revenu_apres_frais_reels"]
+
+        if result_fiscal["revenu_extrapole"]:
+            mois_d = result_fiscal["mois_disponibles"]
+            st.markdown(
+                f'<div style="background:rgba(255,171,0,0.1);border:1px solid rgba(255,171,0,0.3);'
+                f'border-radius:10px;padding:0.7rem 1rem;font-size:0.83rem;color:#FFD166;margin-bottom:0.8rem;">'
+                f'&#9888; Seulement {mois_d} fiche(s) disponible(s). Revenu annuel extrapole sur 12 mois : '
+                f'<strong>{rev:,.2f} €</strong>. Resultat indicatif.'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Bannière résultat
+        if opt == "frais_reels":
+            banner_color = "#4ECDC4"
+            banner_icon = "&#9989;"
+            banner_label = "FRAIS REELS"
+        elif opt == "forfait_10":
+            banner_color = "#6C63FF"
+            banner_icon = "&#9989;"
+            banner_label = "ABATTEMENT FORFAITAIRE 10%"
+        else:
+            banner_color = "#9CA3AF"
+            banner_icon = "&#9866;"
+            banner_label = "LES DEUX OPTIONS SONT EQUIVALENTES"
+
+        gain_line = (
+            f'<div style="font-size:1rem;color:#B8B5FF;margin-top:0.5rem;">'
+            f'Gain fiscal estime : <strong style="color:{banner_color};">{gain:,.0f} \u20ac</strong> '
+            f'de revenu imposable en moins</div>'
+        ) if gain > 0 else ''
+        st.markdown(
+            f'<div style="background:rgba(30,30,60,0.6);border:2px solid {banner_color};'
+            f'border-radius:14px;padding:1.2rem 1.5rem;text-align:center;margin:1rem 0;">'
+            f'<div style="font-size:0.85rem;color:#9CA3AF;margin-bottom:0.3rem;">Option la plus avantageuse</div>'
+            f'<div style="font-size:1.8rem;font-weight:800;color:{banner_color};">'
+            f'{banner_icon} {banner_label}'
+            f'</div>'
+            + gain_line
+            + '</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Tableau comparatif
+        st.markdown(
+            '<div style="font-size:1rem;font-weight:700;color:#B8B5FF;margin:1rem 0 0.5rem;">Comparaison detaillee</div>',
+            unsafe_allow_html=True,
+        )
+
+        col_f, col_r10, col_rfr = st.columns(3)
+        with col_f:
+            st.markdown(
+                f'<div class="glass-card" style="text-align:center;">'
+                f'<div style="font-size:0.85rem;color:#9CA3AF;">Revenu annuel</div>'
+                f'<div style="font-size:1.6rem;font-weight:700;color:#B8B5FF;">{rev:,.2f} €</div>'
+                f'<div style="font-size:0.78rem;color:#6B7280;margin-top:0.3rem;">'
+                + (f'({result_fiscal["mois_disponibles"]} mois' + (' extrapoles' if result_fiscal["revenu_extrapole"] else '') + ')')
+                + '</div></div>',
+                unsafe_allow_html=True,
+            )
+        with col_r10:
+            active10 = opt == "forfait_10"
+            border10 = "border:2px solid #6C63FF;" if active10 else ""
+            st.markdown(
+                f'<div class="glass-card" style="text-align:center;{border10}">'
+                f'<div style="font-size:0.85rem;color:#6C63FF;font-weight:600;">&#9312; Abattement forfaitaire 10%</div>'
+                f'<div style="font-size:1rem;color:#9CA3AF;margin:0.4rem 0;">'
+                f'- {abo["abattement"]:,.2f} €'
+                + (' <small style="color:#FFD166;">(plancher)</small>' if abo["plancher_applique"] else '')
+                + (' <small style="color:#FFD166;">(plafond)</small>' if abo["plafond_applique"] else '')
+                + '</div>'
+                + f'<div style="font-size:1.5rem;font-weight:700;color:#6C63FF;">= {rev_abo:,.2f} €</div>'
+                + (f'<div style="font-size:0.78rem;color:#4ECDC4;margin-top:0.3rem;">&#9989; Option optimale</div>' if active10 else '')
+                + '</div>',
+                unsafe_allow_html=True,
+            )
+        with col_rfr:
+            activefr = opt == "frais_reels"
+            borderfr = "border:2px solid #4ECDC4;" if activefr else ""
+            st.markdown(
+                f'<div class="glass-card" style="text-align:center;{borderfr}">'
+                f'<div style="font-size:0.85rem;color:#4ECDC4;font-weight:600;">&#9313; Frais reels</div>'
+                f'<div style="font-size:1rem;color:#9CA3AF;margin:0.4rem 0;">'
+                f'- {fr["total"]:,.2f} €'
+                + '</div>'
+                + f'<div style="font-size:1.5rem;font-weight:700;color:#4ECDC4;">= {rev_fr:,.2f} €</div>'
+                + (f'<div style="font-size:0.78rem;color:#4ECDC4;margin-top:0.3rem;">&#9989; Option optimale</div>' if activefr else '')
+                + '</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Détail frais réels
+        if fr["total"] > 0:
+            detail_lines = []
+            if fr["frais_km"] > 0:
+                km = fr["km"]
+                detail_lines.append(
+                    f'<div style="display:flex;justify-content:space-between;">'
+                    f'<span>&#128664; Frais kilometriques '
+                    + (f'({km.get("distance_totale_km", 0):,.0f} km/an, '
+                       + (f'{km.get("cv_fiscaux", "")} CV' if "cv_fiscaux" in km else f'{km.get("cv_moto", "")}')
+                       + (' electrique' if km.get("electrique") else '') + ')')
+                    + f'</span><strong>{fr["frais_km"]:,.2f} €</strong></div>'
+                )
+            if fr["frais_repas"] > 0:
+                detail_lines.append(
+                    f'<div style="display:flex;justify-content:space-between;">'
+                    f'<span>&#127860; Frais de repas</span>'
+                    f'<strong>{fr["frais_repas"]:,.2f} €</strong></div>'
+                )
+            if fr["autres_frais"] > 0:
+                detail_lines.append(
+                    f'<div style="display:flex;justify-content:space-between;">'
+                    f'<span>&#128196; Autres frais professionnels</span>'
+                    f'<strong>{fr["autres_frais"]:,.2f} €</strong></div>'
+                )
+            detail_lines.append(
+                f'<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(108,99,255,0.3);'
+                f'margin-top:0.4rem;padding-top:0.4rem;font-weight:700;">'
+                f'<span>Total frais reels</span>'
+                f'<strong style="color:#4ECDC4;">{fr["total"]:,.2f} €</strong></div>'
+            )
+            st.markdown(
+                '<div class="glass-card" style="margin-top:1rem;">'
+                '<div style="font-size:0.95rem;font-weight:600;color:#B8B5FF;margin-bottom:0.6rem;">'
+                'Detail des frais reels'
+                '</div>'
+                '<div style="font-size:0.87rem;color:#9CA3AF;line-height:2;">'
+                + "\n".join(detail_lines)
+                + '</div></div>',
+                unsafe_allow_html=True,
+            )
+
+        # Données fiches détectées
+        df_fiches = result_fiscal["donnees_fiches"]
+        if df_fiches["mois_disponibles"] > 0:
+            extras = []
+            if df_fiches["tickets_resto_salarie"] > 0:
+                extras.append(f'Tickets restaurant (part salariale detectee) : <strong>{df_fiches["tickets_resto_salarie"]:,.2f} €</strong>')
+            if df_fiches["mutuelle_salarie"] > 0:
+                extras.append(f'Mutuelle salariale detectee : <strong>{df_fiches["mutuelle_salarie"]:,.2f} €</strong>')
+            if extras:
+                st.markdown(
+                    '<div class="glass-card" style="margin-top:0.8rem;border-left:3px solid #6C63FF;">'
+                    '<div style="font-size:0.85rem;color:#9CA3AF;line-height:1.9;">'
+                    '<strong style="color:#B8B5FF;">Donnees detectees dans vos fiches :</strong><br>'
+                    + '<br>'.join(extras)
+                    + '<br><span style="font-style:italic;color:#6B7280;">Ces montants sont inclus dans votre revenu fiscal et peuvent egalement '
+                    'constituer des frais reels si non rembourses. Verifiez votre situation.</span>'
+                    + '</div></div>',
+                    unsafe_allow_html=True,
+                )
+
+        # Explication pédagogique
+        st.markdown(
+            '<div class="glass-card" style="margin-top:1rem;border-left:3px solid #FFD166;">'
+            '<div style="font-size:0.92rem;font-weight:600;color:#FFD166;margin-bottom:0.5rem;">'
+            '&#128218; Explication'
+            '</div>'
+            f'<div style="font-size:0.87rem;color:#9CA3AF;line-height:1.7;">'
+            f'{result_fiscal["explication"]}'
+            '<br><br>'
+            '<strong style="color:#B8B5FF;">Pour declarer les frais reels :</strong> '
+            'dans votre declaration en ligne (impots.gouv.fr), cochez la case "Frais reels" '
+            'dans la section Traitements et salaires, et saisissez le montant total. '
+            'Conservez toutes vos justificatifs (factures, notes de carburant, etc.).'
+            '</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ============================================================
