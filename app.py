@@ -1565,6 +1565,99 @@ with _main_tab_fiscal:
                      "Saisissez le montant total annuel — ne pas mensualiser.",
             )
 
+        # ---- Situation du foyer ----
+        st.markdown('<div style="height:0.5rem;"></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="font-size:1rem;font-weight:600;color:#B8B5FF;margin-bottom:0.5rem;">'
+            '&#128106; Situation du foyer fiscal'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        col_situ, col_enf = st.columns(2)
+        with col_situ:
+            situation_familiale = st.selectbox(
+                "Situation familiale",
+                ["celibataire", "marie_pacse", "parent_isole"],
+                format_func=lambda x: {
+                    "celibataire": "\U0001F9CD Celibataire / Divorce(e) / Veuf(ve)",
+                    "marie_pacse": "\U0001F491 Marie(e) / Pacse(e)",
+                    "parent_isole": "\U0001F9D1 Parent isole (enfant a charge)",
+                }[x],
+                help="Votre situation matrimoniale au 1er janvier de l'annee fiscale.",
+            )
+        with col_enf:
+            nb_enfants = st.number_input(
+                "Nombre d'enfants a charge",
+                min_value=0,
+                max_value=15,
+                value=0,
+                step=1,
+                help="Nombre total d'enfants fiscalement a charge (tous ages).",
+            )
+
+        # ---- Enfants scolarisés ----
+        st.markdown('<div style="height:0.4rem;"></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="font-size:1rem;font-weight:600;color:#B8B5FF;margin-bottom:0.5rem;">'
+            '&#127979; Enfants scolarises (reduction d\'impot)'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        col_col, col_lyc, col_sup = st.columns(3)
+        with col_col:
+            enfants_college = st.number_input(
+                "Au college",
+                min_value=0, max_value=10, value=0, step=1,
+                help="Reduction d'impot : 61 \u20ac par enfant au college (art. 199 quater F CGI).",
+            )
+        with col_lyc:
+            enfants_lycee = st.number_input(
+                "Au lycee",
+                min_value=0, max_value=10, value=0, step=1,
+                help="Reduction d'impot : 153 \u20ac par enfant au lycee.",
+            )
+        with col_sup:
+            enfants_superieur = st.number_input(
+                "En etudes superieures",
+                min_value=0, max_value=10, value=0, step=1,
+                help="Reduction d'impot : 183 \u20ac par enfant en etudes superieures.",
+            )
+
+        # ---- Garde d'enfants ----
+        st.markdown('<div style="height:0.4rem;"></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="font-size:1rem;font-weight:600;color:#B8B5FF;margin-bottom:0.5rem;">'
+            '&#128118; Frais de garde d\'enfants (credit d\'impot 50%)'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div style="font-size:0.8rem;color:#6B7280;margin-bottom:0.5rem;">'
+            'Pour enfants de moins de 6 ans. Credit d\'impot = 50% des frais plafonnes '
+            '(3 500 \u20ac/enfant hors domicile | 12 000 \u20ac/an a domicile).'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        col_cre, col_ass, col_gad = st.columns(3)
+        with col_cre:
+            frais_creche = st.number_input(
+                "\U0001F468\u200D\U0001F37C Creche agreee (€/an)",
+                min_value=0.0, value=0.0, step=100.0,
+                help="Frais annuels de creche agreee — hors subventions CAF.",
+            )
+        with col_ass:
+            frais_assmat = st.number_input(
+                "\U0001F469\u200D\U0001F37C Assistante maternelle (€/an)",
+                min_value=0.0, value=0.0, step=100.0,
+                help="Frais annuels d'assistante maternelle agreee — hors PAJE/CMG.",
+            )
+        with col_gad:
+            frais_garde_domicile = st.number_input(
+                "\U0001F3E0 Garde a domicile (€/an)",
+                min_value=0.0, value=0.0, step=100.0,
+                help="Salaire brut annuel d'un(e) garde a domicile (emploi à domicile).",
+            )
+
         st.markdown('<div style="height:0.5rem;"></div>', unsafe_allow_html=True)
         st.markdown(
             '<div style="font-size:1rem;font-weight:600;color:#B8B5FF;margin-bottom:0.5rem;">'
@@ -1718,6 +1811,17 @@ with _main_tab_fiscal:
                 "cotisation_syndicale": cotisation_syndicale,
                 "autres_frais": autres_frais,
                 "revenu_manuel": revenu_manuel,
+                # Foyer fiscal
+                "situation_familiale": situation_familiale,
+                "nb_enfants": nb_enfants,
+                # Scolarité
+                "enfants_college": enfants_college,
+                "enfants_lycee": enfants_lycee,
+                "enfants_superieur": enfants_superieur,
+                # Garde d'enfants
+                "frais_creche": frais_creche,
+                "frais_assmat": frais_assmat,
+                "frais_garde_domicile": frais_garde_domicile,
             }
             _res_fiscaux = _resultats_dispo if _resultats_dispo else []
             result_fiscal = analyse_fiscale(_res_fiscaux, inputs_fiscal)
@@ -1924,6 +2028,119 @@ with _main_tab_fiscal:
                         + '</div></div>',
                         unsafe_allow_html=True,
                     )
+
+            # ---- Foyer fiscal + avantages complémentaires ----
+            _foyer      = result_fiscal["foyer"]
+            _red_scol   = result_fiscal["reduction_scolarite"]
+            _cred_garde = result_fiscal["credit_garde"]
+            _total_av   = result_fiscal["total_avantages_complementaires"]
+
+            _situ_labels = {
+                "celibataire":  "Celibataire / Divorce(e) / Veuf(ve)",
+                "marie_pacse":  "Marie(e) / Pacse(e)",
+                "parent_isole": "Parent isole",
+            }
+
+            # Carte foyer
+            foyer_lines = [
+                f'<div style="display:flex;justify-content:space-between;">'
+                f'<span>Situation</span>'
+                f'<strong>{_situ_labels.get(_foyer["situation"], _foyer["situation"])}</strong></div>',
+
+                f'<div style="display:flex;justify-content:space-between;">'
+                f'<span>Enfants a charge</span>'
+                f'<strong>{_foyer["nb_enfants"]}</strong></div>',
+
+                f'<div style="display:flex;justify-content:space-between;">'
+                f'<span>Parts de base</span>'
+                f'<strong>{_foyer["parts_base"]}</strong></div>',
+            ]
+            if _foyer["parts_enfants"] > 0:
+                foyer_lines.append(
+                    f'<div style="display:flex;justify-content:space-between;">'
+                    f'<span>Parts enfants</span>'
+                    f'<strong>+{_foyer["parts_enfants"]}</strong></div>'
+                )
+            if _foyer["bonus_parent_isole"] > 0:
+                foyer_lines.append(
+                    f'<div style="display:flex;justify-content:space-between;">'
+                    f'<span>Bonus parent isole</span>'
+                    f'<strong>+{_foyer["bonus_parent_isole"]}</strong></div>'
+                )
+            foyer_lines.append(
+                f'<div style="display:flex;justify-content:space-between;'
+                f'border-top:1px solid rgba(108,99,255,0.3);margin-top:0.4rem;padding-top:0.4rem;font-weight:700;">'
+                f'<span>Total parts fiscales (estimation)</span>'
+                f'<strong style="color:#B8B5FF;font-size:1.1rem;">{_foyer["total_parts"]} parts</strong></div>'
+            )
+            st.markdown(
+                '<div class="glass-card" style="margin-top:1rem;border-left:3px solid #6C63FF;">'
+                '<div style="font-size:0.95rem;font-weight:600;color:#B8B5FF;margin-bottom:0.6rem;">'
+                '&#128106; Quotient familial'
+                '</div>'
+                '<div style="font-size:0.87rem;color:#9CA3AF;line-height:2;">'
+                + "".join(foyer_lines)
+                + '<div style="font-size:0.75rem;color:#6B7280;margin-top:0.4rem;font-style:italic;">'
+                'Estimation simplifiee — cas particuliers (invalidite, garde alternee, veuvage) non traites.'
+                '</div></div></div>',
+                unsafe_allow_html=True,
+            )
+
+            # Avantages complémentaires (réductions + crédits)
+            _av_lines = []
+            if _red_scol["total_reduction"] > 0:
+                if _red_scol["reduction_college"] > 0:
+                    _av_lines.append(
+                        f'<div style="display:flex;justify-content:space-between;">'
+                        f'<span>&#127979; College ({_red_scol["enfants_college"]} enfant(s) \u00d7 61 \u20ac)</span>'
+                        f'<strong>- {_red_scol["reduction_college"]:,.0f} \u20ac</strong></div>'
+                    )
+                if _red_scol["reduction_lycee"] > 0:
+                    _av_lines.append(
+                        f'<div style="display:flex;justify-content:space-between;">'
+                        f'<span>&#127979; Lycee ({_red_scol["enfants_lycee"]} enfant(s) \u00d7 153 \u20ac)</span>'
+                        f'<strong>- {_red_scol["reduction_lycee"]:,.0f} \u20ac</strong></div>'
+                    )
+                if _red_scol["reduction_superieur"] > 0:
+                    _av_lines.append(
+                        f'<div style="display:flex;justify-content:space-between;">'
+                        f'<span>&#127979; Superieur ({_red_scol["enfants_superieur"]} enfant(s) \u00d7 183 \u20ac)</span>'
+                        f'<strong>- {_red_scol["reduction_superieur"]:,.0f} \u20ac</strong></div>'
+                    )
+            if _cred_garde["credit_total"] > 0:
+                if _cred_garde["credit_hors_domicile"] > 0:
+                    _av_lines.append(
+                        f'<div style="display:flex;justify-content:space-between;">'
+                        f'<span>&#128118; Garde hors domicile (creche + assmat) — 50% de {_cred_garde["frais_hors_plafonne"]:,.0f} \u20ac</span>'
+                        f'<strong>- {_cred_garde["credit_hors_domicile"]:,.0f} \u20ac</strong></div>'
+                    )
+                if _cred_garde["credit_domicile"] > 0:
+                    _av_lines.append(
+                        f'<div style="display:flex;justify-content:space-between;">'
+                        f'<span>&#128118; Garde a domicile — 50% de {_cred_garde["frais_domicile_plafonne"]:,.0f} \u20ac</span>'
+                        f'<strong>- {_cred_garde["credit_domicile"]:,.0f} \u20ac</strong></div>'
+                    )
+
+            if _av_lines:
+                _av_lines.append(
+                    f'<div style="display:flex;justify-content:space-between;'
+                    f'border-top:1px solid rgba(78,205,196,0.3);margin-top:0.4rem;padding-top:0.4rem;font-weight:700;">'
+                    f'<span>Total reductions + credits d\'impot</span>'
+                    f'<strong style="color:#4ECDC4;font-size:1.1rem;">- {_total_av:,.0f} \u20ac</strong></div>'
+                )
+                st.markdown(
+                    '<div class="glass-card" style="margin-top:1rem;border-left:3px solid #4ECDC4;">'
+                    '<div style="font-size:0.95rem;font-weight:600;color:#B8B5FF;margin-bottom:0.6rem;">'
+                    '&#127381; Reductions &amp; credits d\'impot complementaires'
+                    '</div>'
+                    '<div style="font-size:0.87rem;color:#9CA3AF;line-height:2;">'
+                    + "".join(_av_lines)
+                    + '<div style="font-size:0.75rem;color:#6B7280;margin-top:0.4rem;font-style:italic;">'
+                    'Ces montants s\'appliquent directement sur votre impot calcule (pas sur le revenu imposable). '
+                    'Ils s\'ajoutent au benefice de l\'option frais reels ou abattement forfaitaire.'
+                    '</div></div></div>',
+                    unsafe_allow_html=True,
+                )
 
             # Explication pédagogique
             st.markdown(

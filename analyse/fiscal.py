@@ -49,6 +49,16 @@ ABATTEMENT_MAX  = 13_643  # plafond 2026 (revenus 2025)
 # Bonus véhicule électrique
 BONUS_ELECTRIQUE = 1.20   # +20% sur le barème kilométrique
 
+# Réduction d'impôt scolarité (art. 199 quater F CGI) — barème 2026
+REDUCTION_COLLEGE    = 61   # € par enfant au collège
+REDUCTION_LYCEE      = 153  # € par enfant au lycée
+REDUCTION_SUPERIEUR  = 183  # € par enfant en études supérieures
+
+# Crédit d'impôt garde d'enfants (art. 200 quater B CGI)
+TAUX_CREDIT_GARDE       = 0.50   # 50% des dépenses
+PLAFOND_GARDE_HORS_DOM  = 3_500  # €/enfant/an pour crèche + assistante maternelle
+PLAFOND_GARDE_DOMICILE  = 12_000 # €/an pour garde à domicile (emploi à domicile)
+
 
 # ============================================================
 # FONCTIONS DE CALCUL
@@ -137,6 +147,121 @@ def calcul_frais_km_cyclo(
         "distance_totale_km": round(distance_totale, 1),
         "electrique": electrique,
         "montant": round(montant, 2),
+    }
+
+
+def calcul_parts_fiscales(situation: str, nb_enfants: int) -> dict:
+    """
+    Estime le nombre de parts fiscales du foyer (simplification CGI art. 194).
+
+    Args:
+        situation : 'celibataire' | 'marie_pacse' | 'parent_isole'
+        nb_enfants: nombre d'enfants à charge (tous âges confondus)
+
+    Returns:
+        dict avec parts_base, parts_enfants, bonus_parent_isole, total_parts.
+
+    Note : Calcul simplifié — cas complexes (invalidité, veuvage, garde alternée…)
+           non traités. Le résultat est indicatif.
+    """
+    nb_enfants = max(0, int(nb_enfants))
+
+    parts_base = 2.0 if situation == "marie_pacse" else 1.0
+
+    parts_enfants = 0.0
+    for i in range(nb_enfants):
+        parts_enfants += 0.5 if i < 2 else 1.0   # 1er/2e: +0.5 ; 3e et +: +1
+
+    # Parent isolé avec au moins 1 enfant : +0.5 part supplémentaire (art. 194 II)
+    bonus_parent_isole = 0.5 if (situation == "parent_isole" and nb_enfants >= 1) else 0.0
+
+    total = parts_base + parts_enfants + bonus_parent_isole
+    return {
+        "situation": situation,
+        "nb_enfants": nb_enfants,
+        "parts_base": parts_base,
+        "parts_enfants": round(parts_enfants, 1),
+        "bonus_parent_isole": bonus_parent_isole,
+        "total_parts": round(total, 1),
+    }
+
+
+def calcul_reduction_scolarite(
+    enfants_college: int,
+    enfants_lycee: int,
+    enfants_superieur: int,
+) -> dict:
+    """
+    Calcule la réduction d'impôt pour frais de scolarité (art. 199 quater F CGI).
+    Applicable directement sur l'impôt dû (réduction, pas déduction du revenu).
+
+    Returns:
+        dict avec détail par niveau et total_reduction.
+    """
+    enfants_college   = max(0, int(enfants_college))
+    enfants_lycee     = max(0, int(enfants_lycee))
+    enfants_superieur = max(0, int(enfants_superieur))
+
+    r_college    = enfants_college   * REDUCTION_COLLEGE
+    r_lycee      = enfants_lycee     * REDUCTION_LYCEE
+    r_superieur  = enfants_superieur * REDUCTION_SUPERIEUR
+    total        = r_college + r_lycee + r_superieur
+
+    return {
+        "enfants_college": enfants_college,
+        "enfants_lycee": enfants_lycee,
+        "enfants_superieur": enfants_superieur,
+        "reduction_college": r_college,
+        "reduction_lycee": r_lycee,
+        "reduction_superieur": r_superieur,
+        "total_reduction": total,
+    }
+
+
+def calcul_credit_garde(
+    frais_creche: float,
+    frais_assmat: float,
+    frais_garde_domicile: float,
+) -> dict:
+    """
+    Calcule le crédit d'impôt garde d'enfants (art. 200 quater B CGI).
+
+    Garde hors domicile (crèche agréée + assistante maternelle agréée) :
+    - 50% des dépenses plafonnées à 3 500 €/enfant/an
+    - Pour simplification : plafond global de 3 500 € (un plafond par enfant
+      nécessiterait de connaître le nombre exact d'enfants < 6 ans)
+
+    Garde à domicile (emploi à domicile) :
+    - 50% des dépenses plafonnées à 12 000 €/an
+
+    Returns:
+        dict avec détail des crédits et total_credit.
+    """
+    frais_creche         = max(0.0, _safe_float(frais_creche))
+    frais_assmat         = max(0.0, _safe_float(frais_assmat))
+    frais_garde_domicile = max(0.0, _safe_float(frais_garde_domicile))
+
+    # Crèche + assistante maternelle (hors domicile)
+    frais_hors_dom  = frais_creche + frais_assmat
+    base_hors_dom   = min(frais_hors_dom, PLAFOND_GARDE_HORS_DOM)
+    credit_hors_dom = round(base_hors_dom * TAUX_CREDIT_GARDE, 2)
+
+    # Garde à domicile
+    base_dom        = min(frais_garde_domicile, PLAFOND_GARDE_DOMICILE)
+    credit_dom      = round(base_dom * TAUX_CREDIT_GARDE, 2)
+
+    credit_total = credit_hors_dom + credit_dom
+
+    return {
+        "frais_creche": frais_creche,
+        "frais_assmat": frais_assmat,
+        "frais_hors_domicile": frais_hors_dom,
+        "frais_hors_plafonne": base_hors_dom,
+        "credit_hors_domicile": credit_hors_dom,
+        "frais_garde_domicile": frais_garde_domicile,
+        "frais_domicile_plafonne": base_dom,
+        "credit_domicile": credit_dom,
+        "credit_total": round(credit_total, 2),
     }
 
 
@@ -463,9 +588,26 @@ def analyse_fiscale(
     autres_frais = _safe_float(inputs.get("autres_frais", 0))
 
     # --- 6b. Cotisation syndicale annuelle ---
-    # Déductible en frais réels (CGI art. 83, 3°) — valeur saisie par l'utilisateur,
-    # jamais extrapolée ni recalculée depuis les fiches.
     cotisation_syndicale = _safe_float(inputs.get("cotisation_syndicale", 0))
+
+    # --- 6c. Foyer fiscal ---
+    situation   = inputs.get("situation_familiale", "celibataire")
+    nb_enfants  = int(inputs.get("nb_enfants", 0))
+    foyer       = calcul_parts_fiscales(situation, nb_enfants)
+
+    # --- 6d. Réduction scolarité ---
+    red_scolarite = calcul_reduction_scolarite(
+        enfants_college   = int(inputs.get("enfants_college", 0)),
+        enfants_lycee     = int(inputs.get("enfants_lycee", 0)),
+        enfants_superieur = int(inputs.get("enfants_superieur", 0)),
+    )
+
+    # --- 6e. Crédit garde d'enfants ---
+    cred_garde = calcul_credit_garde(
+        frais_creche         = _safe_float(inputs.get("frais_creche", 0)),
+        frais_assmat         = _safe_float(inputs.get("frais_assmat", 0)),
+        frais_garde_domicile = _safe_float(inputs.get("frais_garde_domicile", 0)),
+    )
 
     # --- 7. Total frais réels ---
     total_frais_reels = (
@@ -539,4 +681,12 @@ def analyse_fiscale(
         "gain_fiscal": round(gain_fiscal, 2),
         "difference_assiette": difference,
         "explication": explication,
+        # Foyer fiscal
+        "foyer": foyer,
+        # Avantages fiscaux complémentaires (hors frais réels / abattement)
+        "reduction_scolarite": red_scolarite,
+        "credit_garde": cred_garde,
+        "total_avantages_complementaires": round(
+            red_scolarite["total_reduction"] + cred_garde["credit_total"], 2
+        ),
     }
