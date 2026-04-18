@@ -179,62 +179,143 @@ def _parse_yyyymm(nom_fichier: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+def extraire_net_fiscal_annuel(fiche_decembre: dict) -> dict:
+    """
+    Extrait le net fiscal annuel UNIQUEMENT depuis une fiche de décembre.
+
+    Règle absolue :
+    - Ignorer la valeur mensuelle (1re colonne)
+    - Prendre la valeur cumul annuel (2e colonne)
+
+    Args:
+        fiche_decembre: dict retourné par analyser_fiche() pour la fiche de décembre.
+
+    Returns:
+        dict avec net_fiscal_annuel, source, fiabilite.
+    """
+    if not fiche_decembre:
+        return {
+            "net_fiscal_annuel": 0.0,
+            "source": "aucune_fiche",
+            "fiabilite": "nulle",
+        }
+
+    det = fiche_decembre.get("detail", {})
+    pd = det.get("payslip_dict", {})
+    resume = pd.get("resume", {})
+
+    # Valeur annuelle = colonne DEPUIS (cumul depuis janvier)
+    net_fiscal_cumul = _safe_float(
+        det.get("net_fiscal_cumul") or resume.get("net_fiscal_cumul", 0)
+    )
+    if net_fiscal_cumul > 0:
+        return {
+            "net_fiscal_annuel": round(net_fiscal_cumul, 2),
+            "source": "fiche_decembre",
+            "fiabilite": "élevée",
+        }
+
+    # Fallback : seulement la valeur mensuelle trouvée
+    net_fiscal_mensuel = _safe_float(
+        det.get("net_fiscal") or resume.get("net_fiscal", 0)
+    )
+    if net_fiscal_mensuel > 0:
+        return {
+            "net_fiscal_annuel": round(net_fiscal_mensuel, 2),
+            "source": "fiche_decembre_mensuel_uniquement",
+            "fiabilite": "faible",
+        }
+
+    return {
+        "net_fiscal_annuel": 0.0,
+        "source": "non_trouve",
+        "fiabilite": "nulle",
+    }
+
+
 def extraire_donnees_annuelles(resultats: list[dict]) -> dict:
     """
     Extrait les données fiscales annuelles depuis les fiches analysées.
 
-    Stratégie : utilise le champ NET FISCAL CUMUL de la fiche la plus récente
-    (décembre ou dernier mois disponible), qui contient déjà le cumul annuel
-    tel qu'affiché sur la fiche de paie. Ne fait donc PAS la somme des mois.
+    Règle absolue :
+    - Le revenu net fiscal annuel est lu UNIQUEMENT sur la fiche de DÉCEMBRE.
+    - On prend la valeur CUMUL (colonne « DEPUIS janvier »), pas la valeur mensuelle.
+    - Si aucune fiche de décembre n'est disponible → decembre_manquant = True,
+      revenu_fiscal_brut = 0, pas d'invention.
 
     Args:
         resultats: list des dicts retournés par analyser_fiche().
 
     Returns:
-        dict avec revenu_fiscal_annuel, source_fiche, mois_source,
-              tickets_resto, mutuelle, mois_disponibles, annee_detectee.
+        dict avec revenu_fiscal_brut, source_cumul, mois_source,
+              decembre_manquant, une_seule_valeur,
+              tickets_resto_salarie, mutuelle_salarie,
+              primes_total, mois_disponibles, annee_detectee.
     """
+    _empty = {
+        "revenu_fiscal_brut": 0.0,
+        "source_cumul": "aucune fiche",
+        "mois_source": None,
+        "decembre_manquant": True,
+        "une_seule_valeur": False,
+        "tickets_resto_salarie": 0.0,
+        "mutuelle_salarie": 0.0,
+        "primes_total": 0.0,
+        "mois_disponibles": 0,
+        "annee_detectee": None,
+    }
     if not resultats:
-        return {
-            "revenu_fiscal_brut": 0.0,
-            "source_cumul": "aucune fiche",
-            "mois_source": None,
-            "tickets_resto_salarie": 0.0,
-            "mutuelle_salarie": 0.0,
-            "primes_total": 0.0,
-            "mois_disponibles": 0,
-            "annee_detectee": None,
-        }
+        return _empty
 
-    # --- Trier les fiches par date (YYYYMM) pour trouver la plus récente ---
+    # ------------------------------------------------------------------ #
+    # 1. Chercher SPÉCIFIQUEMENT une fiche de décembre (mois == 12)       #
+    # ------------------------------------------------------------------ #
     def _sort_key(r):
         fichier = r.get("detail", {}).get("fichier", "")
         return _parse_yyyymm(fichier)
 
     resultats_tries = sorted(resultats, key=_sort_key, reverse=True)
-    fiche_recente = resultats_tries[0]
 
-    det = fiche_recente.get("detail", {})
-    payslip_dict = det.get("payslip_dict", {})
-    resume = payslip_dict.get("resume", {})
-    fichier_nom = det.get("fichier", "")
-    yyyymm = _parse_yyyymm(fichier_nom)
-    mois_source = yyyymm % 100 if yyyymm else None
+    fiche_decembre: dict | None = None
+    annee_decembre: int | None = None
 
-    # NET FISCAL CUMUL = colonne "DEPUIS janvier" de la ligne NET FISCAL
-    net_fiscal_cumul = _safe_float(
-        det.get("net_fiscal_cumul") or resume.get("net_fiscal_cumul", 0)
-    )
-    # Fallback : si cumul absent, prend le mensuel (fiche incomplète ou ancienne)
-    if net_fiscal_cumul == 0:
-        net_fiscal_cumul = _safe_float(
-            det.get("net_fiscal") or resume.get("net_fiscal", 0)
-        )
-        source_cumul = f"net fiscal mensuel uniquement ({fichier_nom})"
+    for r in resultats_tries:
+        fichier = r.get("detail", {}).get("fichier", "")
+        yyyymm = _parse_yyyymm(fichier)
+        if yyyymm % 100 == 12:          # mois == décembre
+            fiche_decembre = r
+            annee_decembre = yyyymm // 100
+            break
+
+    decembre_manquant = fiche_decembre is None
+    une_seule_valeur = False
+
+    if decembre_manquant:
+        # Aucune fiche de décembre → ne pas inventer le revenu
+        net_fiscal_annuel = 0.0
+        source_cumul = "fiche décembre introuvable — revenu non calculé"
+        mois_source = None
     else:
-        source_cumul = f"cumul annuel depuis {fichier_nom}"
+        # Extraire depuis la fiche de décembre uniquement
+        extraction = extraire_net_fiscal_annuel(fiche_decembre)
+        net_fiscal_annuel = extraction["net_fiscal_annuel"]
+        fiabilite = extraction["fiabilite"]
 
-    # Détection de l'année depuis toutes les fiches
+        if fiabilite == "élevée":
+            source_cumul = f"cumul annuel — fiche décembre {annee_decembre}"
+            une_seule_valeur = False
+        elif fiabilite == "faible":
+            source_cumul = f"valeur mensuelle uniquement (cumul introuvable) — fiche décembre {annee_decembre}"
+            une_seule_valeur = True
+        else:
+            source_cumul = f"NET FISCAL introuvable dans la fiche décembre {annee_decembre}"
+            une_seule_valeur = False
+
+        mois_source = 12
+
+    # ------------------------------------------------------------------ #
+    # 2. Cumul tickets restaurant + mutuelle sur TOUTES les fiches         #
+    # ------------------------------------------------------------------ #
     annees: list[int] = []
     tickets_resto_salarie = 0.0
     mutuelle_salarie = 0.0
@@ -250,7 +331,7 @@ def extraire_donnees_annuelles(resultats: list[dict]) -> dict:
 
         primes_total += _safe_float(r.get("primes", 0))
 
-        # Tickets restaurant et mutuelle : chercher dans cotisations ET retenues
+        # Chercher dans cotisations ET retenues
         for section in ("cotisations", "retenues"):
             for row in pd_r.get(section, []):
                 desig = row.get("designation", "").upper()
@@ -265,12 +346,14 @@ def extraire_donnees_annuelles(resultats: list[dict]) -> dict:
                 ):
                     mutuelle_salarie += abs(_safe_float(row.get("montant_employe", 0)))
 
-    annee = max(annees) if annees else None
+    annee = annee_decembre or (max(annees) if annees else None)
 
     return {
-        "revenu_fiscal_brut": round(net_fiscal_cumul, 2),
+        "revenu_fiscal_brut": round(net_fiscal_annuel, 2),
         "source_cumul": source_cumul,
         "mois_source": mois_source,
+        "decembre_manquant": decembre_manquant,
+        "une_seule_valeur": une_seule_valeur,
         "tickets_resto_salarie": round(tickets_resto_salarie, 2),
         "mutuelle_salarie": round(mutuelle_salarie, 2),
         "primes_total": round(primes_total, 2),

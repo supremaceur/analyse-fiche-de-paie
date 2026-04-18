@@ -1335,20 +1335,54 @@ if _resultats_dispo:
     _mois = _donnees_dispo.get("mois_disponibles", 0)
     _revenu_dispo = _donnees_dispo.get("revenu_fiscal_brut", 0)
     _mois_source = _donnees_dispo.get("mois_source")
-    _mois_noms = {1:"janv",2:"fevr",3:"mars",4:"avr",5:"mai",6:"juin",
-                  7:"juil",8:"aout",9:"sept",10:"oct",11:"nov",12:"dec"}
-    _src_label = f"cumul depuis la fiche de <strong>{_mois_noms.get(_mois_source, str(_mois_source))}</strong>" if _mois_source else "fiche la plus recente"
-    st.markdown(
-        f'<div class="info-banner" style="margin-bottom:1rem;">'
-        f'&#128200; <strong>{_mois} fiche(s) disponible(s)</strong>'
-        + (f' — Annee detectee : <strong>{_annee}</strong>' if _annee else '')
-        + f' — Revenu fiscal annuel : <strong>{_revenu_dispo:,.2f} €</strong>'
-        + f' <em style="color:#9CA3AF;font-size:0.85rem;">({_src_label})</em>'
-        + (' <em style="color:#FFD166;"> — &#9888; annee incomplete, verifier la valeur</em>' if _mois < 12 else '')
-        + '</div>',
-        unsafe_allow_html=True,
-    )
+    _dec_manquant = _donnees_dispo.get("decembre_manquant", True)
+    _une_valeur = _donnees_dispo.get("une_seule_valeur", False)
+
+    # Bannière principale : état des fiches
+    if _dec_manquant:
+        # Avertissement rouge : fiche de décembre absente
+        st.markdown(
+            '<div style="background:rgba(255,80,80,0.10);border:1.5px solid rgba(255,80,80,0.45);'
+            'border-radius:10px;padding:0.8rem 1.1rem;margin-bottom:1rem;font-size:0.9rem;">'
+            '<strong style="color:#FF6B6B;">&#9888; Fiche de decembre introuvable</strong><br>'
+            '<span style="color:#9CA3AF;">'
+            f'{_mois} fiche(s) chargee(s), mais aucune de decembre. '
+            'Le revenu net fiscal annuel ne peut pas etre calcule de facon fiable sans la fiche de decembre. '
+            'Deposez-la dans la zone d\'upload ci-dessus, ou saisissez le montant manuellement.'
+            '</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    elif _une_valeur:
+        # Avertissement orange : une seule valeur (pas de cumul dans le PDF)
+        st.markdown(
+            '<div style="background:rgba(255,171,0,0.10);border:1.5px solid rgba(255,171,0,0.4);'
+            'border-radius:10px;padding:0.8rem 1.1rem;margin-bottom:1rem;font-size:0.9rem;">'
+            '<strong style="color:#FFD166;">&#9888; Valeur annuelle non trouvee dans la fiche de decembre</strong><br>'
+            '<span style="color:#9CA3AF;">'
+            'La ligne NET FISCAL de la fiche de decembre ne contient qu\'une seule valeur (mensuelle). '
+            f'Revenu utilise : <strong style="color:#FFD166;">{_revenu_dispo:,.2f} \u20ac</strong> — '
+            'Verifiez ce montant avec votre fiche de paie avant de declarer.'
+            '</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        # Bannière verte : source fiable (décembre, cumul annuel)
+        st.markdown(
+            f'<div class="info-banner" style="margin-bottom:1rem;">'
+            f'&#9989; <strong>{_mois} fiche(s) disponible(s)</strong>'
+            + (f' — Annee <strong>{_annee}</strong>' if _annee else '')
+            + f' — Revenu fiscal annuel (cumul decembre) : <strong>{_revenu_dispo:,.2f} \u20ac</strong>'
+            + f' <em style="color:#9CA3AF;font-size:0.85rem;">(source : fiche decembre {_annee or ""})</em>'
+            + '</div>',
+            unsafe_allow_html=True,
+        )
 else:
+    _donnees_dispo = {}
+    _dec_manquant = True
+    _une_valeur = False
+    _revenu_dispo = 0.0
     st.markdown(
         '<div class="info-banner" style="border-color:rgba(255,171,0,0.4);background:rgba(255,171,0,0.08);margin-bottom:1rem;">'
         '&#9888; Aucune fiche analysee. Deposez vos fiches dans la zone d\'upload ci-dessus, '
@@ -1562,15 +1596,25 @@ if submitted:
         rev_abo = result_fiscal["revenu_apres_abattement"]
         rev_fr = result_fiscal["revenu_apres_frais_reels"]
 
-        src_label = result_fiscal.get("source_cumul", "")
-        mois_s = result_fiscal.get("mois_source")
-        if mois_s and mois_s < 12:
+        _res_dec_manquant = result_fiscal.get("donnees_fiches", {}).get("decembre_manquant", False)
+        _res_une_valeur = result_fiscal.get("donnees_fiches", {}).get("une_seule_valeur", False)
+        if _res_dec_manquant:
             st.markdown(
-                f'<div style="background:rgba(255,171,0,0.1);border:1px solid rgba(255,171,0,0.3);'
-                f'border-radius:10px;padding:0.7rem 1rem;font-size:0.83rem;color:#FFD166;margin-bottom:0.8rem;">'
-                f'&#9888; La fiche la plus recente est celle de mois {mois_s} — '
-                f'le cumul annuel peut etre incomplet. Verifiez la valeur du revenu.'
-                f'</div>',
+                '<div style="background:rgba(255,80,80,0.10);border:1px solid rgba(255,80,80,0.4);'
+                'border-radius:10px;padding:0.7rem 1rem;font-size:0.83rem;color:#FF6B6B;margin-bottom:0.8rem;">'
+                '&#9888; <strong>Fiche de decembre absente</strong> — '
+                'Le revenu saisi manuellement est utilise. '
+                'Pour un calcul fiable, ajoutez la fiche de decembre.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        elif _res_une_valeur:
+            st.markdown(
+                '<div style="background:rgba(255,171,0,0.1);border:1px solid rgba(255,171,0,0.3);'
+                'border-radius:10px;padding:0.7rem 1rem;font-size:0.83rem;color:#FFD166;margin-bottom:0.8rem;">'
+                '&#9888; <strong>Cumul annuel non trouve</strong> dans la fiche de decembre — '
+                'seule la valeur mensuelle a ete extraite. Verifiez le revenu saisi.'
+                '</div>',
                 unsafe_allow_html=True,
             )
 
@@ -1612,13 +1656,20 @@ if submitted:
         )
 
         col_f, col_r10, col_rfr = st.columns(3)
+        _annee_src = result_fiscal.get("annee_detectee", "")
+        _src_ok = not _res_dec_manquant and not _res_une_valeur
+        _src_sub = (
+            f'cumul annuel — fiche dec. {_annee_src}'
+            if _src_ok
+            else ('valeur mensuelle (a verifier)' if _res_une_valeur else 'saisi manuellement')
+        )
         with col_f:
             st.markdown(
                 f'<div class="glass-card" style="text-align:center;">'
-                f'<div style="font-size:0.85rem;color:#9CA3AF;">Revenu annuel</div>'
-                f'<div style="font-size:1.6rem;font-weight:700;color:#B8B5FF;">{rev:,.2f} €</div>'
+                f'<div style="font-size:0.85rem;color:#9CA3AF;">Revenu net fiscal annuel</div>'
+                f'<div style="font-size:1.6rem;font-weight:700;color:#B8B5FF;">{rev:,.2f} \u20ac</div>'
                 f'<div style="font-size:0.78rem;color:#6B7280;margin-top:0.3rem;">'
-                + f'(cumul {result_fiscal["mois_disponibles"]} mois — source fiche)'
+                + f'({_src_sub})'
                 + '</div></div>',
                 unsafe_allow_html=True,
             )
@@ -1712,7 +1763,15 @@ if submitted:
         if df_fiches["mois_disponibles"] > 0:
             extras = []
             if df_fiches["tickets_resto_salarie"] > 0:
-                extras.append(f'Mutuelle salariale detectee : <strong>{df_fiches["mutuelle_salarie"]:,.2f} €</strong>')
+                extras.append(
+                    f'\U0001F3AB Tickets restaurant (part salariale) detectes : '
+                    f'<strong>{df_fiches["tickets_resto_salarie"]:,.2f} \u20ac</strong>'
+                )
+            if df_fiches["mutuelle_salarie"] > 0:
+                extras.append(
+                    f'\U0001FA7A Mutuelle obligatoire detectee : '
+                    f'<strong>{df_fiches["mutuelle_salarie"]:,.2f} \u20ac</strong>'
+                )
             if extras:
                 st.markdown(
                     '<div class="glass-card" style="margin-top:0.8rem;border-left:3px solid #6C63FF;">'
