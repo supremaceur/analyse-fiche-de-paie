@@ -1735,48 +1735,34 @@ with _main_tab_fiscal:
             '</div>',
             unsafe_allow_html=True,
         )
-
-        # Valeurs auto-détectées depuis les fiches
-        _tickets_auto = float(round(_donnees_dispo.get("tickets_resto_salarie", 0), 2)) if _resultats_dispo else 0.0
-        _mutuelle_auto = float(round(_donnees_dispo.get("mutuelle_salarie", 0), 2)) if _resultats_dispo else 0.0
+        st.markdown(
+            '<div style="font-size:0.8rem;color:#6B7280;margin-bottom:0.5rem;">'
+            '&#9432; Les tickets restaurant et la mutuelle obligatoire ne sont <strong>pas</strong> '
+            'deductibles en frais reels.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
         col_r1, col_r2 = st.columns(2)
         with col_r1:
             frais_repas = st.number_input(
-                "Autres frais de repas (€/an)",
+                "\U0001F37D Frais de repas (€/an)",
                 min_value=0.0,
                 value=0.0,
                 step=10.0,
-                help="Repas pris hors domicile non couverts par les tickets restaurant "
-                     "(ex : repas d'affaires, repas lors de deplacements).",
+                help="Repas pris hors domicile pour raison professionnelle, non couverts "
+                     "par les tickets restaurant (ex : repas lors de deplacements, "
+                     "lieu de travail eloigne du domicile).",
             )
-            if _tickets_auto > 0:
-                inclure_tickets = st.checkbox(
-                    f"Inclure tickets restaurant part salariale ({_tickets_auto:,.2f} \u20ac detectes)",
-                    value=True,
-                    help="RET. TITRE REPAS : la part que vous payez pour vos tickets restaurant. "
-                         "Cette somme est deductible en frais reels.",
-                )
-            else:
-                inclure_tickets = False
         with col_r2:
             autres_frais = st.number_input(
-                "Autres frais professionnels (€/an)",
+                "\U0001F4C4 Autres frais professionnels (€/an)",
                 min_value=0.0,
                 value=0.0,
                 step=50.0,
                 help="Formation, outils, vetements professionnels, abonnements… "
                      "Montant annuel non rembourse par l'employeur.",
             )
-            if _mutuelle_auto > 0:
-                inclure_mutuelle = st.checkbox(
-                    f"Inclure mutuelle obligatoire ({_mutuelle_auto:,.2f} \u20ac detectes)",
-                    value=True,
-                    help="COMPLEMENTAIRE SANTE OBLIGATOIRE : votre cotisation mutuelle d'entreprise. "
-                         "Elle est deductible en frais reels.",
-                )
-            else:
-                inclure_mutuelle = False
 
         # Avertissement si revenu < 1
         submitted = st.form_submit_button(
@@ -1804,10 +1790,6 @@ with _main_tab_fiscal:
                 "distance_km": distance_km,
                 "jours_travailles": jours_travailles,
                 "frais_repas": frais_repas,
-                "tickets_resto_auto": _tickets_auto,
-                "inclure_tickets_resto": inclure_tickets,
-                "mutuelle_auto": _mutuelle_auto,
-                "inclure_mutuelle": inclure_mutuelle,
                 "cotisation_syndicale": cotisation_syndicale,
                 "autres_frais": autres_frais,
                 "revenu_manuel": revenu_manuel,
@@ -1956,23 +1938,11 @@ with _main_tab_fiscal:
                            + (' electrique' if km.get("electrique") else '') + ')')
                         + f'</span><strong>{fr["frais_km"]:,.2f} \u20ac</strong></div>'
                     )
-                if fr["frais_repas_manuel"] > 0:
+                if fr.get("frais_repas", 0) > 0:
                     detail_lines.append(
                         f'<div style="display:flex;justify-content:space-between;">'
-                        f'<span>\U0001F37D Frais de repas (saisis)</span>'
-                        f'<strong>{fr["frais_repas_manuel"]:,.2f} \u20ac</strong></div>'
-                    )
-                if fr["tickets_resto"] > 0:
-                    detail_lines.append(
-                        f'<div style="display:flex;justify-content:space-between;">'
-                        f'<span>\U0001F3AB Tickets restaurant — part salarie (RET. TITRE REPAS)</span>'
-                        f'<strong>{fr["tickets_resto"]:,.2f} \u20ac</strong></div>'
-                    )
-                if fr["mutuelle"] > 0:
-                    detail_lines.append(
-                        f'<div style="display:flex;justify-content:space-between;">'
-                        f'<span>\U0001FA7A Mutuelle obligatoire — part salarie (COMPLEMENTAIRE SANTE)</span>'
-                        f'<strong>{fr["mutuelle"]:,.2f} \u20ac</strong></div>'
+                        f'<span>\U0001F37D Frais de repas professionnels</span>'
+                        f'<strong>{fr["frais_repas"]:,.2f} \u20ac</strong></div>'
                     )
                 if fr.get("cotisation_syndicale", 0) > 0:
                     detail_lines.append(
@@ -2002,32 +1972,6 @@ with _main_tab_fiscal:
                     + '</div></div>',
                     unsafe_allow_html=True,
                 )
-
-            # Données fiches détectées
-            df_fiches = result_fiscal["donnees_fiches"]
-            if df_fiches["mois_disponibles"] > 0:
-                extras = []
-                if df_fiches["tickets_resto_salarie"] > 0:
-                    extras.append(
-                        f'\U0001F3AB Tickets restaurant (part salariale) detectes : '
-                        f'<strong>{df_fiches["tickets_resto_salarie"]:,.2f} \u20ac</strong>'
-                    )
-                if df_fiches["mutuelle_salarie"] > 0:
-                    extras.append(
-                        f'\U0001FA7A Mutuelle obligatoire detectee : '
-                        f'<strong>{df_fiches["mutuelle_salarie"]:,.2f} \u20ac</strong>'
-                    )
-                if extras:
-                    st.markdown(
-                        '<div class="glass-card" style="margin-top:0.8rem;border-left:3px solid #6C63FF;">'
-                        '<div style="font-size:0.85rem;color:#9CA3AF;line-height:1.9;">'
-                        '<strong style="color:#B8B5FF;">Donnees detectees dans vos fiches :</strong><br>'
-                        + '<br>'.join(extras)
-                        + '<br><span style="font-style:italic;color:#6B7280;">Ces montants sont inclus dans votre revenu fiscal et peuvent egalement '
-                        'constituer des frais reels si non rembourses. Verifiez votre situation.</span>'
-                        + '</div></div>',
-                        unsafe_allow_html=True,
-                    )
 
             # ---- Foyer fiscal + avantages complémentaires ----
             _foyer      = result_fiscal["foyer"]
@@ -2246,10 +2190,8 @@ with _main_tab_fiscal:
                 _detail_fr_items = []
                 if _fr_g["frais_km"] > 0:
                     _detail_fr_items.append(f"Frais km : {_fr_g['frais_km']:,.2f} \u20ac")
-                if _fr_g["frais_repas_total"] > 0:
-                    _detail_fr_items.append(f"Repas/tickets : {_fr_g['frais_repas_total']:,.2f} \u20ac")
-                if _fr_g["mutuelle"] > 0:
-                    _detail_fr_items.append(f"Mutuelle part salarie : {_fr_g['mutuelle']:,.2f} \u20ac")
+                if _fr_g.get("frais_repas", 0) > 0:
+                    _detail_fr_items.append(f"Repas : {_fr_g['frais_repas']:,.2f} \u20ac")
                 if _synd_g > 0:
                     _detail_fr_items.append(f"Cotisation syndicale : {_synd_g:,.2f} \u20ac")
                 if _fr_g["autres_frais"] > 0:

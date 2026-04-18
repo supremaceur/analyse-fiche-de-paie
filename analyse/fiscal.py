@@ -566,31 +566,17 @@ def analyse_fiscale(
         km_detail = {"distance_totale_km": 0, "montant": 0.0}
 
     # --- 3. Frais repas saisis manuellement ---
+    # NOTE : les tickets restaurant (RET. TITRE REPAS) et la mutuelle obligatoire
+    # (COMPLEMENTAIRE SANTE OBLIGATOIRE) NE sont PAS déductibles en frais réels.
     frais_repas = _safe_float(inputs.get("frais_repas", 0))
 
-    # --- 4. Tickets restaurant (part salariale détectée dans les fiches) ---
-    # RET. TITRE REPAS = la part que le salarié paie lui-même → déductible en frais réels
-    tickets_resto = _safe_float(inputs.get("tickets_resto_auto", 0))
-    if inputs.get("inclure_tickets_resto", True):
-        frais_repas_total = frais_repas + tickets_resto
-    else:
-        frais_repas_total = frais_repas
-
-    # --- 5. Mutuelle obligatoire (part salariale, ex: COMPLEMENTAIRE SANTE OBLIGATOIRE) ---
-    # La cotisation mutuelle d'entreprise est déductible en frais réels
-    mutuelle = _safe_float(inputs.get("mutuelle_auto", 0))
-    if inputs.get("inclure_mutuelle", True):
-        mutuelle_deductible = mutuelle
-    else:
-        mutuelle_deductible = 0.0
-
-    # --- 6. Autres frais ---
+    # --- 4. Autres frais professionnels ---
     autres_frais = _safe_float(inputs.get("autres_frais", 0))
 
-    # --- 6b. Cotisation syndicale annuelle ---
+    # --- 5. Cotisation syndicale annuelle ---
     cotisation_syndicale = _safe_float(inputs.get("cotisation_syndicale", 0))
 
-    # --- 6c. Foyer fiscal ---
+    # --- 6. Foyer fiscal ---
     situation   = inputs.get("situation_familiale", "celibataire")
     nb_enfants  = int(inputs.get("nb_enfants", 0))
     foyer       = calcul_parts_fiscales(situation, nb_enfants)
@@ -612,8 +598,7 @@ def analyse_fiscale(
     # --- 7. Total frais réels ---
     total_frais_reels = (
         frais_km_montant
-        + frais_repas_total
-        + mutuelle_deductible
+        + frais_repas
         + autres_frais
         + cotisation_syndicale
     )
@@ -663,14 +648,11 @@ def analyse_fiscale(
         # Abattement 10%
         "abattement": abo,
         "revenu_apres_abattement": revenu_apres_abattement,
-        # Frais réels
+        # Frais réels (tickets restaurant et mutuelle exclus : non déductibles)
         "frais_reels": {
             "km": km_detail,
             "frais_km": frais_km_montant,
-            "frais_repas_manuel": frais_repas,
-            "tickets_resto": tickets_resto,
-            "frais_repas_total": round(frais_repas_total, 2),
-            "mutuelle": round(mutuelle_deductible, 2),
+            "frais_repas": frais_repas,
             "cotisation_syndicale": round(cotisation_syndicale, 2),
             "autres_frais": autres_frais,
             "total": round(total_frais_reels, 2),
