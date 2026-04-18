@@ -2146,15 +2146,285 @@ with _main_tab_fiscal:
             st.markdown(
                 '<div class="glass-card" style="margin-top:1rem;border-left:3px solid #FFD166;">'
                 '<div style="font-size:0.92rem;font-weight:600;color:#FFD166;margin-bottom:0.5rem;">'
-                '&#128218; Explication'
+                '&#128218; Pourquoi cette recommandation ?'
                 '</div>'
                 f'<div style="font-size:0.87rem;color:#9CA3AF;line-height:1.7;">'
                 f'{result_fiscal["explication"]}'
-                '<br><br>'
-                '<strong style="color:#B8B5FF;">Pour declarer les frais reels :</strong> '
-                'dans votre declaration en ligne (impots.gouv.fr), cochez la case "Frais reels" '
-                'dans la section Traitements et salaires, et saisissez le montant total. '
-                'Conservez toutes vos justificatifs (factures, notes de carburant, etc.).'
+                '</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+            # ================================================================
+            # GUIDE DE DECLARATION — Cases fiscales personnalisées
+            # ================================================================
+            st.markdown('<div style="margin-top:2rem;"></div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="section-header">'
+                '<span class="icon">&#128196;</span> Guide de declaration — Ou saisir chaque montant'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<div class="glass-card" style="border-left:3px solid #4ECDC4;margin-bottom:1.2rem;">'
+                '<div style="font-size:0.88rem;color:#9CA3AF;line-height:1.7;">'
+                '<strong style="color:#4ECDC4;">&#127919; Comment utiliser ce guide</strong><br>'
+                'Chaque ligne ci-dessous correspond a une case precise de votre declaration en ligne '
+                '(<a href="https://www.impots.gouv.fr" target="_blank" style="color:#6C63FF;">impots.gouv.fr</a>). '
+                'Les cases sont adaptes a votre situation personnelle.'
+                '</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+            # --- Construction du guide ---
+            _opt        = result_fiscal["option_optimale"]
+            _foyer_g    = result_fiscal["foyer"]
+            _fr_g       = result_fiscal["frais_reels"]
+            _red_s      = result_fiscal["reduction_scolarite"]
+            _cred_g     = result_fiscal["credit_garde"]
+            _rev_g      = result_fiscal["revenu_annuel_estime"]
+            _synd_g     = _fr_g.get("cotisation_syndicale", 0)
+            _marie      = _foyer_g["situation"] == "marie_pacse"
+            _isole      = _foyer_g["situation"] == "parent_isole"
+
+            # Carte CSS pour chaque case
+            def _case_badge(case, color="#6C63FF"):
+                return (
+                    f'<span style="background:{color};color:#fff;font-weight:700;'
+                    f'font-size:0.82rem;padding:0.15rem 0.55rem;border-radius:6px;'
+                    f'font-family:monospace;letter-spacing:0.5px;">{case}</span>'
+                )
+
+            def _guide_row(icon, nom, case, montant_str, explication, color="#6C63FF", alerte=False):
+                alerte_html = (
+                    '<br><span style="color:#FFD166;font-size:0.78rem;">&#9888; ' + alerte + '</span>'
+                ) if alerte else ''
+                return (
+                    f'<div style="display:grid;grid-template-columns:2rem 1fr auto;'
+                    f'gap:0.6rem;align-items:start;padding:0.75rem 0;'
+                    f'border-bottom:1px solid rgba(255,255,255,0.05);">'
+                    f'<div style="font-size:1.1rem;padding-top:0.1rem;">{icon}</div>'
+                    f'<div>'
+                    f'<div style="font-weight:600;color:#E5E7EB;font-size:0.88rem;">{nom}</div>'
+                    f'<div style="color:#9CA3AF;font-size:0.8rem;margin-top:0.2rem;">{explication}{alerte_html}</div>'
+                    f'</div>'
+                    f'<div style="text-align:right;white-space:nowrap;">'
+                    f'{_case_badge(case, color)}<br>'
+                    f'<strong style="color:#E5E7EB;font-size:0.88rem;">{montant_str}</strong>'
+                    f'</div>'
+                    f'</div>'
+                )
+
+            _guide_rows = []
+
+            # 1. Revenu net fiscal — 1AJ (ou 1BJ conjoint)
+            _case_rev = "1AJ + 1BJ" if _marie else "1AJ"
+            _expl_rev = (
+                "Case du 1er declarant. Votre conjoint(e) declare son propre revenu en case 1BJ."
+                if _marie else
+                "Revenu net imposable annuel issu de la ligne NET FISCAL de votre fiche de decembre."
+            )
+            _guide_rows.append(_guide_row(
+                "&#128200;", "Revenu net fiscal annuel",
+                _case_rev, f"{_rev_g:,.2f} \u20ac",
+                _expl_rev, "#6C63FF",
+            ))
+
+            # 2. Frais réels (si option choisie) — 1AK
+            if _opt == "frais_reels":
+                _guide_rows.append(_guide_row(
+                    "&#128664;", "Frais professionnels reels (total)",
+                    "1AK", f"{_fr_g['total']:,.2f} \u20ac",
+                    "Cochez la case <em>Frais reels</em> dans la rubrique Traitements et salaires, "
+                    "puis saisissez ce montant. Conservez TOUS vos justificatifs.",
+                    "#4ECDC4",
+                    alerte="Ne pas saisir de montant en 1AK si vous avez deja coche l'abattement forfaitaire."
+                    if False else None,
+                ))
+                # Détail frais réels sous forme d'info
+                _detail_fr_items = []
+                if _fr_g["frais_km"] > 0:
+                    _detail_fr_items.append(f"Frais km : {_fr_g['frais_km']:,.2f} \u20ac")
+                if _fr_g["frais_repas_total"] > 0:
+                    _detail_fr_items.append(f"Repas/tickets : {_fr_g['frais_repas_total']:,.2f} \u20ac")
+                if _fr_g["mutuelle"] > 0:
+                    _detail_fr_items.append(f"Mutuelle part salarie : {_fr_g['mutuelle']:,.2f} \u20ac")
+                if _synd_g > 0:
+                    _detail_fr_items.append(f"Cotisation syndicale : {_synd_g:,.2f} \u20ac")
+                if _fr_g["autres_frais"] > 0:
+                    _detail_fr_items.append(f"Autres frais : {_fr_g['autres_frais']:,.2f} \u20ac")
+                if _detail_fr_items:
+                    st.markdown(
+                        '<div style="background:rgba(78,205,196,0.06);border:1px dashed rgba(78,205,196,0.25);'
+                        'border-radius:8px;padding:0.5rem 0.8rem;font-size:0.78rem;color:#9CA3AF;margin-bottom:0.3rem;">'
+                        '<strong style="color:#4ECDC4;">Composition du montant 1AK :</strong> '
+                        + ' &nbsp;+&nbsp; '.join(_detail_fr_items)
+                        + '</div>',
+                        unsafe_allow_html=True,
+                    )
+            else:
+                # Abattement forfaitaire = automatique, rien à saisir
+                _guide_rows.append(_guide_row(
+                    "&#9989;", "Abattement forfaitaire 10%",
+                    "Automatique", f"- {result_fiscal['abattement']['abattement']:,.0f} \u20ac",
+                    "L'abattement de 10% est calcule automatiquement par le fisc sur la base du 1AJ. "
+                    "Aucune case a remplir.",
+                    "#6C63FF",
+                ))
+
+            # 3. Cotisation syndicale
+            if _synd_g > 0:
+                if _opt == "frais_reels":
+                    # Déjà dans 1AK, juste une note
+                    _guide_rows.append(_guide_row(
+                        "&#129309;", "Cotisation syndicale",
+                        "→ 1AK", f"{_synd_g:,.2f} \u20ac inclus",
+                        "Deja incluse dans vos frais reels (case 1AK). "
+                        "Ne pas saisir en 7AC pour eviter un double comptage.",
+                        "#9CA3AF",
+                    ))
+                else:
+                    # Abattement forfaitaire → case 7AC (crédit 66%)
+                    _credit_synd = round(_synd_g * 0.66, 2)
+                    _guide_rows.append(_guide_row(
+                        "&#129309;", "Cotisation syndicale annuelle",
+                        "7AC", f"{_synd_g:,.2f} \u20ac \u2192 credit {_credit_synd:,.2f} \u20ac",
+                        f"Saisissez {_synd_g:,.2f} \u20ac en case 7AC. "
+                        f"Le fisc calcule automatiquement un credit d'impot de 66% = {_credit_synd:,.2f} \u20ac.",
+                        "#FFD166",
+                    ))
+
+            # 4. Parent isolé → case T
+            if _isole and _foyer_g["nb_enfants"] > 0:
+                _guide_rows.append(_guide_row(
+                    "&#129489;", "Situation parent isole",
+                    "Case T", "A cocher",
+                    "En page 1 de la declaration, cochez la case T "
+                    "\'Vous elevez seul(e) un ou des enfants\'. "
+                    "Cela accorde une demi-part supplementaire.",
+                    "#FF6B6B",
+                ))
+
+            # 5. Enfants scolarisés
+            if _red_s["enfants_college"] > 0:
+                _guide_rows.append(_guide_row(
+                    "&#127979;", f"Enfants au college ({_red_s['enfants_college']})",
+                    "7EA", f"{_red_s['enfants_college']} \u2192 reduction {_red_s['reduction_college']:,.0f} \u20ac",
+                    f"Saisissez le NOMBRE d'enfants ({_red_s['enfants_college']}) en case 7EA. "
+                    f"Le fisc applique automatiquement la reduction de 61 \u20ac par enfant.",
+                    "#B8B5FF",
+                ))
+            if _red_s["enfants_lycee"] > 0:
+                _guide_rows.append(_guide_row(
+                    "&#127979;", f"Enfants au lycee ({_red_s['enfants_lycee']})",
+                    "7EC", f"{_red_s['enfants_lycee']} \u2192 reduction {_red_s['reduction_lycee']:,.0f} \u20ac",
+                    f"Saisissez le NOMBRE d'enfants ({_red_s['enfants_lycee']}) en case 7EC. "
+                    f"Reduction automatique de 153 \u20ac par enfant.",
+                    "#B8B5FF",
+                ))
+            if _red_s["enfants_superieur"] > 0:
+                _guide_rows.append(_guide_row(
+                    "&#127979;", f"Enfants en etudes superieures ({_red_s['enfants_superieur']})",
+                    "7EF", f"{_red_s['enfants_superieur']} \u2192 reduction {_red_s['reduction_superieur']:,.0f} \u20ac",
+                    f"Saisissez le NOMBRE d'enfants ({_red_s['enfants_superieur']}) en case 7EF. "
+                    f"Reduction automatique de 183 \u20ac par enfant.",
+                    "#B8B5FF",
+                ))
+
+            # 6. Garde hors domicile — 7GA / 7GB / 7GC
+            if _cred_g["frais_hors_domicile"] > 0:
+                _guide_rows.append(_guide_row(
+                    "&#128118;", "Frais de garde hors domicile (creche + assmat)",
+                    "7GA / 7GB / 7GC",
+                    f"{_cred_g['frais_hors_domicile']:,.2f} \u20ac \u2192 credit {_cred_g['credit_hors_domicile']:,.2f} \u20ac",
+                    "Saisissez le montant par enfant de moins de 6 ans : "
+                    "7GA pour le 1er enfant, 7GB pour le 2e, 7GC pour le 3e et suivants. "
+                    f"Total : {_cred_g['frais_hors_domicile']:,.2f} \u20ac — "
+                    "le credit de 50% est calcule automatiquement (plafond 3 500 \u20ac/enfant).",
+                    "#FF6B6B",
+                    alerte="Verifiez que les montants saisis sont APRES deduction des aides CAF/PAJE.",
+                ))
+
+            # 7. Garde à domicile — 7DB
+            if _cred_g["frais_garde_domicile"] > 0:
+                _guide_rows.append(_guide_row(
+                    "&#127968;", "Garde a domicile (emploi a domicile)",
+                    "7DB",
+                    f"{_cred_g['frais_garde_domicile']:,.2f} \u20ac \u2192 credit {_cred_g['credit_domicile']:,.2f} \u20ac",
+                    "Case 7DB : depenses d'emploi a domicile (rubrique Charges). "
+                    "Credit d'impot de 50% calcule automatiquement (plafond 12 000 \u20ac/an).",
+                    "#FF6B6B",
+                ))
+
+            # Rendu du guide
+            st.markdown(
+                '<div class="glass-card" style="padding:0.5rem 1.2rem;">'
+                + "".join(_guide_rows)
+                + '</div>',
+                unsafe_allow_html=True,
+            )
+
+            # --- Étapes pas-à-pas ---
+            st.markdown('<div style="margin-top:1.2rem;"></div>', unsafe_allow_html=True)
+            _etapes_frais = (
+                '<li>Case <strong style="color:#4ECDC4;font-family:monospace;">1AK</strong> — '
+                f'Saisissez vos frais reels : <strong>{_fr_g["total"]:,.2f} \u20ac</strong> '
+                '(rubrique "Frais professionnels reels")</li>'
+            ) if _opt == "frais_reels" else (
+                '<li>L\'abattement de 10% est <strong>automatique</strong> — '
+                'aucune case a cocher pour l\'abattement.</li>'
+            )
+            _etapes_synd = (
+                f'<li>Case <strong style="color:#FFD166;font-family:monospace;">7AC</strong> — '
+                f'Cotisation syndicale : <strong>{_synd_g:,.2f} \u20ac</strong> '
+                f'(credit d\'impot 66% = {round(_synd_g*0.66,2):,.2f} \u20ac)</li>'
+            ) if (_synd_g > 0 and _opt != "frais_reels") else ''
+            _etapes_scol = (
+                ('<li>Rubrique <strong>Reductions et credits — Scolarite</strong><ul style="margin:0.2rem 0 0 1rem;">'
+                 + (f'<li>Case <strong style="color:#B8B5FF;font-family:monospace;">7EA</strong> = {_red_s["enfants_college"]} (college)</li>' if _red_s["enfants_college"] > 0 else '')
+                 + (f'<li>Case <strong style="color:#B8B5FF;font-family:monospace;">7EC</strong> = {_red_s["enfants_lycee"]} (lycee)</li>' if _red_s["enfants_lycee"] > 0 else '')
+                 + (f'<li>Case <strong style="color:#B8B5FF;font-family:monospace;">7EF</strong> = {_red_s["enfants_superieur"]} (superieur)</li>' if _red_s["enfants_superieur"] > 0 else '')
+                 + '</ul></li>')
+            ) if _red_s["total_reduction"] > 0 else ''
+            _etapes_garde = (
+                ('<li>Rubrique <strong>Reductions et credits — Garde d\'enfants</strong><ul style="margin:0.2rem 0 0 1rem;">'
+                 + (f'<li>Cases <strong style="color:#FF6B6B;font-family:monospace;">7GA/7GB/7GC</strong> — montant par enfant (creche/assmat) : {_cred_g["frais_hors_domicile"]:,.2f} \u20ac</li>' if _cred_g["frais_hors_domicile"] > 0 else '')
+                 + (f'<li>Case <strong style="color:#FF6B6B;font-family:monospace;">7DB</strong> — garde a domicile : {_cred_g["frais_garde_domicile"]:,.2f} \u20ac</li>' if _cred_g["frais_garde_domicile"] > 0 else '')
+                 + '</ul></li>')
+            ) if _cred_g["credit_total"] > 0 else ''
+            _etapes_isole = (
+                '<li>Page 1 — cochez la <strong style="color:#FF6B6B;">case T</strong> '
+                '(parent elevant seul ses enfants)</li>'
+            ) if (_isole and _foyer_g["nb_enfants"] > 0) else ''
+
+            st.markdown(
+                '<div class="glass-card" style="border-left:3px solid #6C63FF;">'
+                '<div style="font-size:0.95rem;font-weight:600;color:#B8B5FF;margin-bottom:0.8rem;">'
+                '&#128203; Etapes pour remplir votre declaration en ligne'
+                '</div>'
+                '<ol style="color:#9CA3AF;font-size:0.87rem;line-height:2;padding-left:1.2rem;margin:0;">'
+                '<li>Connectez-vous sur <a href="https://www.impots.gouv.fr" target="_blank" '
+                'style="color:#6C63FF;">impots.gouv.fr</a> \u2192 <em>Espace particulier</em> '
+                '\u2192 <em>Acces a la declaration de revenus</em></li>'
+                '<li>Verifiez la <strong>page 1</strong> (identite, situation familiale) — '
+                'normalement pre-remplie par le fisc</li>'
+                + _etapes_isole
+                + f'<li>Rubrique <strong>Revenus</strong> \u2192 <em>Traitements et salaires</em>'
+                f'<ul style="margin:0.2rem 0 0 1rem;">'
+                f'<li>Case <strong style="color:#6C63FF;font-family:monospace;">{_case_rev}</strong> — '
+                f'Revenu net fiscal : <strong>{_rev_g:,.2f} \u20ac</strong></li>'
+                f'</ul></li>'
+                + _etapes_frais
+                + _etapes_synd
+                + _etapes_scol
+                + _etapes_garde
+                + '<li>Cliquez sur <strong>Valider</strong>, verifiez le recapitulatif et signez</li>'
+                '</ol>'
+                '<div style="font-size:0.78rem;color:#6B7280;margin-top:0.8rem;border-top:'
+                '1px solid rgba(255,255,255,0.06);padding-top:0.6rem;">'
+                '&#9432; Ce guide est indicatif. En cas de doute, consultez votre centre des impots '
+                'ou un conseiller fiscal. Les cases peuvent varier selon votre situation.'
                 '</div>'
                 '</div>',
                 unsafe_allow_html=True,
