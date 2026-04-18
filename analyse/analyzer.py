@@ -158,6 +158,7 @@ def analyser_fiche(uploaded_file) -> dict:
             "questions": questions,
             "absences_detail": absences,
             "net_fiscal": resume.get("net_fiscal", 0),
+            "net_fiscal_cumul": resume.get("net_fiscal_cumul", 0),
             "net_avant_impot": resume.get("net_avant_impot", 0),
             "montant_net_social": resume.get("montant_net_social", 0),
             "cotisations_salariales": resume.get("cotisations_salariales", 0),

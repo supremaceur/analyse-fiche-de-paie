@@ -1334,12 +1334,17 @@ if _resultats_dispo:
     _annee = _donnees_dispo.get("annee_detectee")
     _mois = _donnees_dispo.get("mois_disponibles", 0)
     _revenu_dispo = _donnees_dispo.get("revenu_fiscal_brut", 0)
+    _mois_source = _donnees_dispo.get("mois_source")
+    _mois_noms = {1:"janv",2:"fevr",3:"mars",4:"avr",5:"mai",6:"juin",
+                  7:"juil",8:"aout",9:"sept",10:"oct",11:"nov",12:"dec"}
+    _src_label = f"cumul depuis la fiche de <strong>{_mois_noms.get(_mois_source, str(_mois_source))}</strong>" if _mois_source else "fiche la plus recente"
     st.markdown(
         f'<div class="info-banner" style="margin-bottom:1rem;">'
         f'&#128200; <strong>{_mois} fiche(s) disponible(s)</strong>'
         + (f' — Annee detectee : <strong>{_annee}</strong>' if _annee else '')
-        + f' — Revenu fiscal cumule : <strong>{_revenu_dispo:,.2f} €</strong>'
-        + (' <em style="color:#FFD166;">(annee incomplete — extrapolation possible)</em>' if _mois < 12 else '')
+        + f' — Revenu fiscal annuel : <strong>{_revenu_dispo:,.2f} €</strong>'
+        + f' <em style="color:#9CA3AF;font-size:0.85rem;">({_src_label})</em>'
+        + (' <em style="color:#FFD166;"> — &#9888; annee incomplete, verifier la valeur</em>' if _mois < 12 else '')
         + '</div>',
         unsafe_allow_html=True,
     )
@@ -1465,30 +1470,52 @@ with st.form("form_fiscal"):
     st.markdown('<div style="height:0.5rem;"></div>', unsafe_allow_html=True)
     st.markdown(
         '<div style="font-size:1rem;font-weight:600;color:#B8B5FF;margin-bottom:0.5rem;">'
-        '&#127860; Frais de repas et autres frais professionnels'
+        '&#127860; Repas et frais professionnels'
         '</div>',
         unsafe_allow_html=True,
     )
 
+    # Valeurs auto-détectées depuis les fiches
+    _tickets_auto = float(round(_donnees_dispo.get("tickets_resto_salarie", 0), 2)) if _resultats_dispo else 0.0
+    _mutuelle_auto = float(round(_donnees_dispo.get("mutuelle_salarie", 0), 2)) if _resultats_dispo else 0.0
+
     col_r1, col_r2 = st.columns(2)
     with col_r1:
         frais_repas = st.number_input(
-            "Frais de repas non rembourses (€/an)",
+            "Autres frais de repas (€/an)",
             min_value=0.0,
-            value=float(round(_donnees_dispo.get("tickets_resto_salarie", 0), 2)) if _resultats_dispo else 0.0,
+            value=0.0,
             step=10.0,
-            help="Part des repas prise en charge par vous-meme (apres deduction des tickets restaurant). "
-                 "Detecte automatiquement depuis vos fiches si disponible.",
+            help="Repas pris hors domicile non couverts par les tickets restaurant "
+                 "(ex : repas d'affaires, repas lors de deplacements).",
         )
+        if _tickets_auto > 0:
+            inclure_tickets = st.checkbox(
+                f"Inclure tickets restaurant part salariale ({_tickets_auto:,.2f} \u20ac detectes)",
+                value=True,
+                help="RET. TITRE REPAS : la part que vous payez pour vos tickets restaurant. "
+                     "Cette somme est deductible en frais reels.",
+            )
+        else:
+            inclure_tickets = False
     with col_r2:
         autres_frais = st.number_input(
             "Autres frais professionnels (€/an)",
             min_value=0.0,
             value=0.0,
             step=50.0,
-            help="Formation, outils, vetements professionnels, abonnements professionnels… "
-                 "Saisissez le montant total annuel non rembourse par l'employeur.",
+            help="Formation, outils, vetements professionnels, abonnements… "
+                 "Montant annuel non rembourse par l'employeur.",
         )
+        if _mutuelle_auto > 0:
+            inclure_mutuelle = st.checkbox(
+                f"Inclure mutuelle obligatoire ({_mutuelle_auto:,.2f} \u20ac detectes)",
+                value=True,
+                help="COMPLEMENTAIRE SANTE OBLIGATOIRE : votre cotisation mutuelle d'entreprise. "
+                     "Elle est deductible en frais reels.",
+            )
+        else:
+            inclure_mutuelle = False
 
     # Avertissement si revenu < 1
     submitted = st.form_submit_button(
@@ -1516,6 +1543,10 @@ if submitted:
             "distance_km": distance_km,
             "jours_travailles": jours_travailles,
             "frais_repas": frais_repas,
+            "tickets_resto_auto": _tickets_auto,
+            "inclure_tickets_resto": inclure_tickets,
+            "mutuelle_auto": _mutuelle_auto,
+            "inclure_mutuelle": inclure_mutuelle,
             "autres_frais": autres_frais,
             "revenu_manuel": revenu_manuel,
         }
@@ -1531,13 +1562,14 @@ if submitted:
         rev_abo = result_fiscal["revenu_apres_abattement"]
         rev_fr = result_fiscal["revenu_apres_frais_reels"]
 
-        if result_fiscal["revenu_extrapole"]:
-            mois_d = result_fiscal["mois_disponibles"]
+        src_label = result_fiscal.get("source_cumul", "")
+        mois_s = result_fiscal.get("mois_source")
+        if mois_s and mois_s < 12:
             st.markdown(
                 f'<div style="background:rgba(255,171,0,0.1);border:1px solid rgba(255,171,0,0.3);'
                 f'border-radius:10px;padding:0.7rem 1rem;font-size:0.83rem;color:#FFD166;margin-bottom:0.8rem;">'
-                f'&#9888; Seulement {mois_d} fiche(s) disponible(s). Revenu annuel extrapole sur 12 mois : '
-                f'<strong>{rev:,.2f} €</strong>. Resultat indicatif.'
+                f'&#9888; La fiche la plus recente est celle de mois {mois_s} — '
+                f'le cumul annuel peut etre incomplet. Verifiez la valeur du revenu.'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -1586,7 +1618,7 @@ if submitted:
                 f'<div style="font-size:0.85rem;color:#9CA3AF;">Revenu annuel</div>'
                 f'<div style="font-size:1.6rem;font-weight:700;color:#B8B5FF;">{rev:,.2f} €</div>'
                 f'<div style="font-size:0.78rem;color:#6B7280;margin-top:0.3rem;">'
-                + (f'({result_fiscal["mois_disponibles"]} mois' + (' extrapoles' if result_fiscal["revenu_extrapole"] else '') + ')')
+                + f'(cumul {result_fiscal["mois_disponibles"]} mois — source fiche)'
                 + '</div></div>',
                 unsafe_allow_html=True,
             )
@@ -1628,29 +1660,41 @@ if submitted:
                 km = fr["km"]
                 detail_lines.append(
                     f'<div style="display:flex;justify-content:space-between;">'
-                    f'<span>&#128664; Frais kilometriques '
+                    f'<span>\U0001F664 Frais kilometriques '
                     + (f'({km.get("distance_totale_km", 0):,.0f} km/an, '
                        + (f'{km.get("cv_fiscaux", "")} CV' if "cv_fiscaux" in km else f'{km.get("cv_moto", "")}')
                        + (' electrique' if km.get("electrique") else '') + ')')
-                    + f'</span><strong>{fr["frais_km"]:,.2f} €</strong></div>'
+                    + f'</span><strong>{fr["frais_km"]:,.2f} \u20ac</strong></div>'
                 )
-            if fr["frais_repas"] > 0:
+            if fr["frais_repas_manuel"] > 0:
                 detail_lines.append(
                     f'<div style="display:flex;justify-content:space-between;">'
-                    f'<span>&#127860; Frais de repas</span>'
-                    f'<strong>{fr["frais_repas"]:,.2f} €</strong></div>'
+                    f'<span>\U0001F37D Frais de repas (saisis)</span>'
+                    f'<strong>{fr["frais_repas_manuel"]:,.2f} \u20ac</strong></div>'
+                )
+            if fr["tickets_resto"] > 0:
+                detail_lines.append(
+                    f'<div style="display:flex;justify-content:space-between;">'
+                    f'<span>\U0001F3AB Tickets restaurant — part salariale (RET. TITRE REPAS)</span>'
+                    f'<strong>{fr["tickets_resto"]:,.2f} \u20ac</strong></div>'
+                )
+            if fr["mutuelle"] > 0:
+                detail_lines.append(
+                    f'<div style="display:flex;justify-content:space-between;">'
+                    f'<span>\U0001FA7A Mutuelle obligatoire (COMPLEMENTAIRE SANTE)</span>'
+                    f'<strong>{fr["mutuelle"]:,.2f} \u20ac</strong></div>'
                 )
             if fr["autres_frais"] > 0:
                 detail_lines.append(
                     f'<div style="display:flex;justify-content:space-between;">'
-                    f'<span>&#128196; Autres frais professionnels</span>'
-                    f'<strong>{fr["autres_frais"]:,.2f} €</strong></div>'
+                    f'<span>\U0001F4C4 Autres frais professionnels</span>'
+                    f'<strong>{fr["autres_frais"]:,.2f} \u20ac</strong></div>'
                 )
             detail_lines.append(
                 f'<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(108,99,255,0.3);'
                 f'margin-top:0.4rem;padding-top:0.4rem;font-weight:700;">'
                 f'<span>Total frais reels</span>'
-                f'<strong style="color:#4ECDC4;">{fr["total"]:,.2f} €</strong></div>'
+                f'<strong style="color:#4ECDC4;">{fr["total"]:,.2f} \u20ac</strong></div>'
             )
             st.markdown(
                 '<div class="glass-card" style="margin-top:1rem;">'
@@ -1658,7 +1702,7 @@ if submitted:
                 'Detail des frais reels'
                 '</div>'
                 '<div style="font-size:0.87rem;color:#9CA3AF;line-height:2;">'
-                + "\n".join(detail_lines)
+                + "".join(detail_lines)
                 + '</div></div>',
                 unsafe_allow_html=True,
             )
@@ -1668,8 +1712,6 @@ if submitted:
         if df_fiches["mois_disponibles"] > 0:
             extras = []
             if df_fiches["tickets_resto_salarie"] > 0:
-                extras.append(f'Tickets restaurant (part salariale detectee) : <strong>{df_fiches["tickets_resto_salarie"]:,.2f} €</strong>')
-            if df_fiches["mutuelle_salarie"] > 0:
                 extras.append(f'Mutuelle salariale detectee : <strong>{df_fiches["mutuelle_salarie"]:,.2f} €</strong>')
             if extras:
                 st.markdown(

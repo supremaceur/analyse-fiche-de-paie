@@ -173,69 +173,107 @@ def _safe_float(v: Any) -> float:
         return 0.0
 
 
+def _parse_yyyymm(nom_fichier: str) -> int:
+    """Extrait YYYYMM depuis un nom du type 'Periode 202312 - ...'  → 202312."""
+    m = re.search(r"(\d{6})", nom_fichier)
+    return int(m.group(1)) if m else 0
+
+
 def extraire_donnees_annuelles(resultats: list[dict]) -> dict:
     """
-    Agrège les données fiscalement utiles de toutes les fiches analysées.
+    Extrait les données fiscales annuelles depuis les fiches analysées.
+
+    Stratégie : utilise le champ NET FISCAL CUMUL de la fiche la plus récente
+    (décembre ou dernier mois disponible), qui contient déjà le cumul annuel
+    tel qu'affiché sur la fiche de paie. Ne fait donc PAS la somme des mois.
 
     Args:
         resultats: list des dicts retournés par analyser_fiche().
 
     Returns:
-        dict avec revenu_fiscal_brut, tickets_resto, mutuelle,
-              primes_total, mois_disponibles, annee_detectee.
+        dict avec revenu_fiscal_annuel, source_fiche, mois_source,
+              tickets_resto, mutuelle, mois_disponibles, annee_detectee.
     """
-    revenu_fiscal_brut = 0.0
+    if not resultats:
+        return {
+            "revenu_fiscal_brut": 0.0,
+            "source_cumul": "aucune fiche",
+            "mois_source": None,
+            "tickets_resto_salarie": 0.0,
+            "mutuelle_salarie": 0.0,
+            "primes_total": 0.0,
+            "mois_disponibles": 0,
+            "annee_detectee": None,
+        }
+
+    # --- Trier les fiches par date (YYYYMM) pour trouver la plus récente ---
+    def _sort_key(r):
+        fichier = r.get("detail", {}).get("fichier", "")
+        return _parse_yyyymm(fichier)
+
+    resultats_tries = sorted(resultats, key=_sort_key, reverse=True)
+    fiche_recente = resultats_tries[0]
+
+    det = fiche_recente.get("detail", {})
+    payslip_dict = det.get("payslip_dict", {})
+    resume = payslip_dict.get("resume", {})
+    fichier_nom = det.get("fichier", "")
+    yyyymm = _parse_yyyymm(fichier_nom)
+    mois_source = yyyymm % 100 if yyyymm else None
+
+    # NET FISCAL CUMUL = colonne "DEPUIS janvier" de la ligne NET FISCAL
+    net_fiscal_cumul = _safe_float(
+        det.get("net_fiscal_cumul") or resume.get("net_fiscal_cumul", 0)
+    )
+    # Fallback : si cumul absent, prend le mensuel (fiche incomplète ou ancienne)
+    if net_fiscal_cumul == 0:
+        net_fiscal_cumul = _safe_float(
+            det.get("net_fiscal") or resume.get("net_fiscal", 0)
+        )
+        source_cumul = f"net fiscal mensuel uniquement ({fichier_nom})"
+    else:
+        source_cumul = f"cumul annuel depuis {fichier_nom}"
+
+    # Détection de l'année depuis toutes les fiches
+    annees: list[int] = []
     tickets_resto_salarie = 0.0
     mutuelle_salarie = 0.0
     primes_total = 0.0
-    heures_sup_exonerees = 0.0
-    annees: list[int] = []
 
     for r in resultats:
-        det = r.get("detail", {})
-        payslip_dict = det.get("payslip_dict", {})
-        resume = payslip_dict.get("resume", {})
+        det_r = r.get("detail", {})
+        pd_r = det_r.get("payslip_dict", {})
+        res_r = pd_r.get("resume", {})
+        periode = res_r.get("periode", "") or r.get("periode", "")
+        for yr in re.findall(r"\b(20\d{2})\b", periode):
+            annees.append(int(yr))
 
-        # Revenu fiscal (net imposable)
-        nf = _safe_float(det.get("net_fiscal") or resume.get("net_fiscal", 0))
-        revenu_fiscal_brut += nf
-
-        # Primes
         primes_total += _safe_float(r.get("primes", 0))
 
-        # Tickets restaurant (retenue salariale)
-        for row in payslip_dict.get("retenues", []):
-            desig = row.get("designation", "").upper()
-            if "TITRE" in desig or "REPAS" in desig or "TICKET" in desig:
-                tickets_resto_salarie += abs(_safe_float(row.get("montant_employe", 0)))
+        # Tickets restaurant et mutuelle : chercher dans cotisations ET retenues
+        for section in ("cotisations", "retenues"):
+            for row in pd_r.get(section, []):
+                desig = row.get("designation", "").upper()
 
-        # Mutuelle salariale (cotisation complémentaire santé)
-        for row in payslip_dict.get("cotisations", []):
-            desig = row.get("designation", "").upper()
-            if ("SANTE" in desig or "MUTUELLE" in desig) and (
-                "COMPL" in desig or "OBLIG" in desig
-            ):
-                mutuelle_salarie += abs(_safe_float(row.get("montant_employe", 0)))
+                # RET.TITRE REPAS / TICKET RESTAURANT
+                if "TITRE" in desig or "REPAS" in desig or "TICKET" in desig:
+                    tickets_resto_salarie += abs(_safe_float(row.get("montant_employe", 0)))
 
-        # Heures sup exonérées (déjà déduites du net fiscal, juste informatif)
-        for row in payslip_dict.get("remuneration", []) + payslip_dict.get("retenues", []):
-            desig = row.get("designation", "").upper()
-            if "EXONER" in desig or ("HS" in desig and "EXON" in desig):
-                heures_sup_exonerees += abs(_safe_float(row.get("montant_employe", 0)))
-
-        # Détection de l'année
-        periode = resume.get("periode", "") or r.get("periode", "")
-        for m in re.findall(r"\b(20\d{2})\b", periode):
-            annees.append(int(m))
+                # Mutuelle / complémentaire santé obligatoire
+                if ("SANTE" in desig or "MUTUELLE" in desig) and (
+                    "COMPL" in desig or "OBLIG" in desig
+                ):
+                    mutuelle_salarie += abs(_safe_float(row.get("montant_employe", 0)))
 
     annee = max(annees) if annees else None
 
     return {
-        "revenu_fiscal_brut": round(revenu_fiscal_brut, 2),
+        "revenu_fiscal_brut": round(net_fiscal_cumul, 2),
+        "source_cumul": source_cumul,
+        "mois_source": mois_source,
         "tickets_resto_salarie": round(tickets_resto_salarie, 2),
         "mutuelle_salarie": round(mutuelle_salarie, 2),
         "primes_total": round(primes_total, 2),
-        "heures_sup_exonerees": round(heures_sup_exonerees, 2),
         "mois_disponibles": len(resultats),
         "annee_detectee": annee,
     }
@@ -271,27 +309,20 @@ def analyse_fiscale(
     # --- 1. Données des fiches ---
     donnees = extraire_donnees_annuelles(resultats) if resultats else {
         "revenu_fiscal_brut": 0.0,
+        "source_cumul": "aucune fiche",
+        "mois_source": None,
         "tickets_resto_salarie": 0.0,
         "mutuelle_salarie": 0.0,
         "primes_total": 0.0,
-        "heures_sup_exonerees": 0.0,
         "mois_disponibles": 0,
         "annee_detectee": None,
     }
 
-    # Revenus : fiches ou saisie manuelle
+    # Revenus : cumul depuis la fiche la plus récente, ou saisie manuelle
     revenu = donnees["revenu_fiscal_brut"]
     if inputs.get("revenu_manuel") and revenu == 0:
         revenu = _safe_float(inputs["revenu_manuel"])
-
-    # Si moins de 12 mois, extrapolation indicative
-    mois = donnees["mois_disponibles"]
-    revenu_extrapole = False
-    if 0 < mois < 12:
-        revenu_extrapole = True
-        revenu_annuel_estime = round(revenu / mois * 12, 2)
-    else:
-        revenu_annuel_estime = revenu
+    revenu_annuel_estime = revenu  # pas d'extrapolation : on utilise le cumul réel
 
     # --- 2. Frais kilométriques ---
     type_v = inputs.get("type_vehicule", "voiture")
@@ -326,14 +357,30 @@ def analyse_fiscale(
         frais_km_montant = 0.0
         km_detail = {"distance_totale_km": 0, "montant": 0.0}
 
-    # --- 3. Frais repas ---
+    # --- 3. Frais repas saisis manuellement ---
     frais_repas = _safe_float(inputs.get("frais_repas", 0))
 
-    # --- 4. Autres frais ---
+    # --- 4. Tickets restaurant (part salariale détectée dans les fiches) ---
+    # RET. TITRE REPAS = la part que le salarié paie lui-même → déductible en frais réels
+    tickets_resto = _safe_float(inputs.get("tickets_resto_auto", 0))
+    if inputs.get("inclure_tickets_resto", True):
+        frais_repas_total = frais_repas + tickets_resto
+    else:
+        frais_repas_total = frais_repas
+
+    # --- 5. Mutuelle obligatoire (part salariale, ex: COMPLEMENTAIRE SANTE OBLIGATOIRE) ---
+    # La cotisation mutuelle d'entreprise est déductible en frais réels
+    mutuelle = _safe_float(inputs.get("mutuelle_auto", 0))
+    if inputs.get("inclure_mutuelle", True):
+        mutuelle_deductible = mutuelle
+    else:
+        mutuelle_deductible = 0.0
+
+    # --- 6. Autres frais ---
     autres_frais = _safe_float(inputs.get("autres_frais", 0))
 
-    # --- 5. Total frais réels ---
-    total_frais_reels = frais_km_montant + frais_repas + autres_frais
+    # --- 7. Total frais réels ---
+    total_frais_reels = frais_km_montant + frais_repas_total + mutuelle_deductible + autres_frais
 
     # --- 6. Abattement forfaitaire ---
     abo = calcul_abattement_forfaitaire(revenu_annuel_estime)
@@ -371,8 +418,9 @@ def analyse_fiscale(
         # Revenus
         "revenu_brut": revenu,
         "revenu_annuel_estime": revenu_annuel_estime,
-        "revenu_extrapole": revenu_extrapole,
-        "mois_disponibles": mois,
+        "mois_disponibles": donnees["mois_disponibles"],
+        "mois_source": donnees.get("mois_source"),
+        "source_cumul": donnees.get("source_cumul", ""),
         "annee_detectee": donnees["annee_detectee"],
         # Données fiches
         "donnees_fiches": donnees,
@@ -383,7 +431,10 @@ def analyse_fiscale(
         "frais_reels": {
             "km": km_detail,
             "frais_km": frais_km_montant,
-            "frais_repas": frais_repas,
+            "frais_repas_manuel": frais_repas,
+            "tickets_resto": tickets_resto,
+            "frais_repas_total": round(frais_repas_total, 2),
+            "mutuelle": round(mutuelle_deductible, 2),
             "autres_frais": autres_frais,
             "total": round(total_frais_reels, 2),
         },

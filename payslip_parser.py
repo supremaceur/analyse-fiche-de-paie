@@ -58,7 +58,8 @@ class PayslipSummary:
     montant_net_social: float = 0.0
     net_avant_impot: float = 0.0
     net_a_payer: float = 0.0
-    net_fiscal: float = 0.0
+    net_fiscal: float = 0.0          # mensuel
+    net_fiscal_cumul: float = 0.0    # cumul depuis le 1er janvier (colonne "DEPUIS")
     hs_exonerees: float = 0.0
     total_verse_employeur: float = 0.0
     taux_impot: str = ""
@@ -651,10 +652,18 @@ def parse_summary(text: str) -> PayslipSummary:
     if m:
         summary.total_verse_employeur = float(f"{m.group(1)}.{m.group(2)}")
 
-    # Net fiscal
-    m = re.search(r"NET FISCAL\s+(\d+)\s+(\d{2})", text)
+    # Net fiscal mensuel + cumul annuel
+    # Format ligne PDF : "NET FISCAL 1451 54 12854 70"
+    #   groupe 1+2 = valeur mensuelle, groupe 3+4 = cumul depuis 1er janvier
+    m = re.search(r"NET FISCAL\s+(\d+)\s+(\d{2})\s+(\d+)\s+(\d{2})", text)
     if m:
         summary.net_fiscal = float(f"{m.group(1)}.{m.group(2)}")
+        summary.net_fiscal_cumul = float(f"{m.group(3)}.{m.group(4)}")
+    else:
+        # Format sans cumul (fiche incomplète)
+        m2 = re.search(r"NET FISCAL\s+(\d+)\s+(\d{2})", text)
+        if m2:
+            summary.net_fiscal = float(f"{m2.group(1)}.{m2.group(2)}")
 
     # Mode de paiement
     if "VIREMENT" in text:
@@ -783,6 +792,7 @@ def payslip_to_dict(payslip: PayslipData) -> dict:
             "net_avant_impot": payslip.resume.net_avant_impot,
             "net_a_payer": payslip.resume.net_a_payer,
             "net_fiscal": payslip.resume.net_fiscal,
+            "net_fiscal_cumul": payslip.resume.net_fiscal_cumul,
             "total_verse_employeur": payslip.resume.total_verse_employeur,
             "mode_paiement": payslip.resume.mode_paiement,
         },
@@ -795,6 +805,7 @@ def payslip_to_dict(payslip: PayslipData) -> dict:
             "net_avant_impot": payslip.resume.net_avant_impot,
             "net_a_payer": payslip.resume.net_a_payer,
             "net_fiscal": payslip.resume.net_fiscal,
+            "net_fiscal_cumul": payslip.resume.net_fiscal_cumul,
             "hs_exonerees": payslip.resume.hs_exonerees,
             "mode_paiement": payslip.resume.mode_paiement,
             "taux_impot": payslip.resume.taux_impot,
